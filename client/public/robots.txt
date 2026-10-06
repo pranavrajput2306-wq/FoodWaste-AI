@@ -1,0 +1,18 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+Allow: /login
+Allow: /register
+
+# Private authenticated application routes
+Disallow: /dashboard
+Disallow: /food-items
+Disallow: /demand
+Disallow: /analytics
+Disallow: /recommendations
+Disallow: /predictions
+Disallow: /organization
+Disallow: /api/
+
+# Sitemap location
+Sitemap: /sitemap.xml

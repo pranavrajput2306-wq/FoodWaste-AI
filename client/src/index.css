@@ -1,0 +1,125 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+/* ── Design tokens: Sustainable SaaS Palette ─────────────── */
+:root {
+  --bg-primary:     #F7F8F4;
+  --bg-secondary:   #FFFFFF;
+  --bg-surface:     #FFFFFF;
+  --bg-card:        #FFFFFF;
+  --primary-dark:   #17251F;
+  --secondary-dark: #263B32;
+  --primary-accent: #2F7D5A;
+  --accent-light:   #DCEDE4;
+  --highlight:      #C89B3C;
+  --text-primary:   #17251F;
+  --text-secondary: #66736C;
+  --border-color:   #E3E8E4;
+  --color-success:  #2F7D5A;
+  --color-warning:  #C89B3C;
+  --color-danger:   #C45B52;
+  --accent-green:   #2F7D5A;
+  --accent-blue:    #2F7D5A;
+  --accent-purple:  #263B32;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Scrollbar ──────────────────────────────────────────── */
+::-webkit-scrollbar         { width: 6px; }
+::-webkit-scrollbar-track   { background: transparent; }
+::-webkit-scrollbar-thumb   { background: #E3E8E4; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #66736C; }
+
+/* ── Form elements ──────────────────────────────────────── */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #FFFFFF inset !important;
+  -webkit-text-fill-color: #17251F !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* ── Utility: gradient text ─────────────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, #17251F 0%, #2F7D5A 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Utility: surface card ────────────────────────────────── */
+.glass {
+  background: #FFFFFF;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 1px 3px 0 rgba(23, 37, 31, 0.05), 0 1px 2px -1px rgba(23, 37, 31, 0.05);
+}
+
+/* ── Animation: fade-in ─────────────────────────────────── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+.fade-in-up { animation: fadeInUp 0.4s ease-out forwards; }
+
+/* ── Animation: pulse glow ──────────────────────────────── */
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 12px rgba(47,125,90,0.15); }
+  50%       { box-shadow: 0 0 24px rgba(47,125,90,0.3); }
+}
+.pulse-glow { animation: pulseGlow 2.5s ease-in-out infinite; }
+
+/* ── Scroll-based progressive reveal ─────────────────────── */
+.reveal-on-scroll {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1), transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+
+.reveal-on-scroll.is-revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Staggered entry transitions */
+.stagger-1 { transition-delay: 60ms; }
+.stagger-2 { transition-delay: 120ms; }
+.stagger-3 { transition-delay: 180ms; }
+.stagger-4 { transition-delay: 240ms; }
+.stagger-5 { transition-delay: 300ms; }
+
+/* Feature Card Hover Micro-Interactions */
+.feature-card-hover {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.feature-card-hover:hover {
+  transform: translateY(-4px) scale(1.015);
+  box-shadow: 0 10px 25px -5px rgba(23, 37, 31, 0.08), 0 8px 10px -6px rgba(23, 37, 31, 0.04);
+}
+
+/* Reduced motion accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .reveal-on-scroll {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+  .feature-card-hover {
+    transform: none !important;
+    transition: none !important;
+  }
+}
+

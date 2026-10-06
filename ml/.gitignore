@@ -1,0 +1,27 @@
+# Directories to exclude from version control
+
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# Data files (may contain sensitive / large datasets)
+data/raw/
+data/processed/
+
+# Trained model artefacts
+artifacts/*.joblib
+artifacts/*.pkl
+
+# Notebook checkpoints
+notebooks/.ipynb_checkpoints/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# OS
+.DS_Store
+Thumbs.db
