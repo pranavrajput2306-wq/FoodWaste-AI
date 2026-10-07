@@ -1,5 +1,8 @@
 const { pool } = require('../config/database');
 const { generateRecommendations } = require('../services/recommendation.service');
+const { calculateFinancialImpact } = require('../services/financial.service');
+const { calculateOrganizationBenchmark } = require('../services/benchmark.service');
+const { calculateWasteReductionGoal } = require('../services/goal.service');
 
 /**
  * GET /api/analytics/summary
@@ -181,7 +184,65 @@ async function getRecommendationsHandler(req, res, next) {
   }
 }
 
+/**
+ * GET /api/analytics/financial-impact
+ * Genuine data-driven financial waste impact and defensible potential savings.
+ */
+async function getFinancialImpactHandler(req, res, next) {
+  try {
+    const organizationId = req.organization.id;
+    const result = await calculateFinancialImpact(organizationId, pool);
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * GET /api/analytics/benchmark
+ * Organization performance baseline and historical benchmark metrics.
+ */
+async function getBenchmarkHandler(req, res, next) {
+  try {
+    const organizationId = req.organization.id;
+    const result = await calculateOrganizationBenchmark(organizationId, pool);
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * GET /api/analytics/goal
+ * Actionable operational waste reduction goals based on historical performance.
+ */
+async function getGoalHandler(req, res, next) {
+  try {
+    const organizationId = req.organization.id;
+    const result = await calculateWasteReductionGoal(organizationId, pool);
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   getAnalyticsSummary,
   getRecommendationsHandler,
+  getFinancialImpactHandler,
+  getBenchmarkHandler,
+  getGoalHandler,
 };
+

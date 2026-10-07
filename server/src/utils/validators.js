@@ -65,6 +65,17 @@ const foodItemValidationRules = [
     .optional()
     .trim()
     .isLength({ max: 30 }).withMessage('Unit cannot exceed 30 characters.'),
+
+  body('unit_cost')
+    .optional({ nullable: true })
+    .custom((val) => {
+      if (val === null || val === undefined || val === '') return true;
+      const num = Number(val);
+      if (isNaN(num) || num < 0) {
+        throw new Error('Unit cost must be a non-negative decimal value.');
+      }
+      return true;
+    }),
 ];
 
 const demandRecordValidationRules = [

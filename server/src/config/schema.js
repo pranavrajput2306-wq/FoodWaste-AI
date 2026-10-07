@@ -77,6 +77,7 @@ async function initializeSchema() {
         name            VARCHAR(150)  NOT NULL,
         category        VARCHAR(100)  NOT NULL DEFAULT 'Uncategorized',
         unit            VARCHAR(30)   NOT NULL DEFAULT 'portions',
+        unit_cost       DECIMAL(10, 2) DEFAULT NULL,
         created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (organization_id)
@@ -85,6 +86,22 @@ async function initializeSchema() {
         INDEX idx_fi_name (name)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
+
+    // Migration: ensure unit_cost column exists in existing food_items table
+    const [costCol] = await connection.execute(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'food_items' 
+        AND COLUMN_NAME = 'unit_cost'
+    `);
+    if (costCol.length === 0) {
+      await connection.execute(`
+        ALTER TABLE food_items 
+        ADD COLUMN unit_cost DECIMAL(10, 2) DEFAULT NULL
+      `);
+      console.log('✅ Added unit_cost column to food_items table');
+    }
 
     // ------------------------------------------------------------------
     // 5. demand_records  (core ML training data)

@@ -7,6 +7,8 @@ import useSEO from '../hooks/useSEO';
 export default function AnalyticsPage() {
   useSEO({ title: 'Sustainability Analytics — FoodWaste AI', noindex: true });
   const [data, setData] = useState(null);
+  const [benchmark, setBenchmark] = useState(null);
+  const [goal, setGoal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filterQuery, setFilterQuery] = useState('');
@@ -20,8 +22,18 @@ export default function AnalyticsPage() {
     try {
       setLoading(true);
       setError('');
-      const res = await analyticsApi.getSummary();
-      setData(res.data.data);
+      const [summaryRes, benchmarkRes, goalRes] = await Promise.all([
+        analyticsApi.getSummary(),
+        analyticsApi.getBenchmark().catch(() => null),
+        analyticsApi.getGoal().catch(() => null),
+      ]);
+      setData(summaryRes.data.data);
+      if (benchmarkRes?.data?.data) {
+        setBenchmark(benchmarkRes.data.data);
+      }
+      if (goalRes?.data?.data) {
+        setGoal(goalRes.data.data);
+      }
     } catch (err) {
       setError(err.message || 'Failed to load analytics data.');
     } finally {
@@ -99,6 +111,13 @@ export default function AnalyticsPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+          <Link
+            to="/financial-impact"
+            className="px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold bg-[#C89B3C]/10 border border-[#C89B3C]/30 text-[#8B6B23] hover:bg-[#C89B3C]/20 transition-all flex items-center gap-1.5 shadow-xs"
+          >
+            <span>💰</span>
+            <span>Financial Impact</span>
+          </Link>
           <Link
             to="/recommendations"
             className="px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold bg-[#DCEDE4] border border-[#2F7D5A]/30 text-[#2F7D5A] hover:bg-[#2F7D5A] hover:text-white transition-all flex items-center gap-1.5 shadow-xs"
@@ -199,6 +218,298 @@ export default function AnalyticsPage() {
             >
               + Log First Demand Record
             </Link>
+          </div>
+        )}
+
+        {/* ── Organization Performance Baseline & Historical Benchmark ── */}
+        {!loading && benchmark && benchmark.status !== 'no_data' && (
+          <div className="glass rounded-2xl p-5 sm:p-6 shadow-xs border border-[#E3E8E4] space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🎯</span>
+                  <h2 className="text-base font-bold text-[#17251F]">
+                    Organization Performance Baseline
+                  </h2>
+                  <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-[#DCEDE4] text-[#2F7D5A] border border-[#2F7D5A]/20">
+                    Historical Benchmark
+                  </span>
+                </div>
+                <p className="text-xs text-[#66736C] mt-0.5">
+                  Internal performance baseline computed strictly from your authorized demand data.
+                </p>
+              </div>
+
+              {benchmark.status === 'single_record' && (
+                <span className="text-xs text-[#C89B3C] bg-[#C89B3C]/10 border border-[#C89B3C]/30 px-2.5 py-1 rounded-lg font-medium self-start sm:self-auto">
+                  Initial log baseline
+                </span>
+              )}
+            </div>
+
+            {/* 4 Metric Tiles */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              {/* Current Waste Rate */}
+              <div className="bg-white/80 rounded-xl p-3.5 sm:p-4 border border-[#E3E8E4]">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-[#66736C] font-medium block">Current Waste Rate</span>
+                  <span className="text-[10px] text-[#66736C] bg-[#F7F8F4] px-1.5 py-0.5 rounded border border-[#E3E8E4]">Latest recorded day</span>
+                </div>
+                <p
+                  className="text-xl sm:text-2xl font-bold mt-1"
+                  style={{
+                    color:
+                      benchmark.current_waste_rate > 20
+                        ? '#C45B52'
+                        : benchmark.current_waste_rate > 10
+                        ? '#C89B3C'
+                        : '#2F7D5A',
+                  }}
+                >
+                  {benchmark.current_waste_rate}%
+                </p>
+                <p className="text-[11px] text-[#66736C] mt-1 truncate">
+                  Latest recorded day: {benchmark.current_period?.date || 'N/A'}
+                </p>
+              </div>
+
+              {/* Historical Average */}
+              <div className="bg-white/80 rounded-xl p-3.5 sm:p-4 border border-[#E3E8E4]">
+                <span className="text-xs text-[#66736C] font-medium block">Historical Average</span>
+                <p className="text-xl sm:text-2xl font-bold mt-1 text-[#17251F]">
+                  {benchmark.historical_average_waste_rate}%
+                </p>
+                <p className="text-[11px] text-[#66736C] mt-1">
+                  Volume-weighted ({benchmark.totals.total_days_recorded} {benchmark.totals.total_days_recorded === 1 ? 'day' : 'days'})
+                </p>
+              </div>
+
+              {/* Best Observed Rate */}
+              <div className="bg-white/80 rounded-xl p-3.5 sm:p-4 border border-[#E3E8E4]">
+                <span className="text-xs text-[#66736C] font-medium block">Best Observed Rate</span>
+                <p className="text-xl sm:text-2xl font-bold mt-1 text-[#2F7D5A]">
+                  {benchmark.best_observed_waste_rate}%
+                </p>
+                <p className="text-[11px] text-[#66736C] mt-1 truncate">
+                  Achieved: {benchmark.best_observed_period?.date || 'N/A'}
+                </p>
+              </div>
+
+              {/* Improvement Gap */}
+              <div className="bg-white/80 rounded-xl p-3.5 sm:p-4 border border-[#E3E8E4]">
+                <span className="text-xs text-[#66736C] font-medium block">Improvement Gap</span>
+                <p
+                  className="text-xl sm:text-2xl font-bold mt-1"
+                  style={{
+                    color:
+                      benchmark.improvement_gap === 0
+                        ? '#2F7D5A'
+                        : benchmark.improvement_gap > 10
+                        ? '#C45B52'
+                        : '#C89B3C',
+                  }}
+                >
+                  {benchmark.improvement_gap > 0 ? `+${benchmark.improvement_gap}%` : '0.00%'}
+                </p>
+                <p className="text-[11px] text-[#66736C] mt-1">
+                  {benchmark.improvement_gap === 0
+                    ? 'At historical peak efficiency'
+                    : 'To reach best observed rate'}
+                </p>
+              </div>
+            </div>
+
+            {/* Best performing items & Disclaimer Note */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-2 border-t border-[#E3E8E4]/60 text-xs">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[#66736C] font-medium">
+                  Best-performing items (≥3 records):
+                </span>
+                {benchmark.best_performing_items && benchmark.best_performing_items.length > 0 ? (
+                  benchmark.best_performing_items.map((item) => (
+                    <span
+                      key={item.id}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#DCEDE4] text-[#2F7D5A] border border-[#2F7D5A]/20 font-medium text-[11px]"
+                    >
+                      <span>🍲 {item.name}</span>
+                      <span className="font-bold">({item.waste_rate}% historical rate)</span>
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-[#8B9891] italic text-[11px]">
+                    Requires at least 3 logged records per item to establish reliable performance.
+                  </span>
+                )}
+              </div>
+
+              <div className="text-[11px] text-[#8B9891] italic">
+                * Best observed rate reflects historical performance, NOT a guaranteed future result.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Actionable Waste Reduction Goal ──────────────────── */}
+        {!loading && goal && goal.status !== 'no_data' && (
+          <div className="glass rounded-2xl p-5 sm:p-6 shadow-xs border border-[#E3E8E4] space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🏆</span>
+                  <h2 className="text-base font-bold text-[#17251F]">
+                    Actionable Waste Reduction Goal
+                  </h2>
+                  <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-[#C89B3C]/10 text-[#8B6B23] border border-[#C89B3C]/30">
+                    Operational Target
+                  </span>
+                </div>
+                <p className="text-xs text-[#66736C] mt-0.5">
+                  Achievable efficiency targets derived strictly from your organization's demonstrated historical performance.
+                </p>
+              </div>
+
+              {goal.status === 'insufficient_data' ? (
+                <span className="text-xs text-[#C89B3C] bg-[#C89B3C]/10 border border-[#C89B3C]/30 px-2.5 py-1 rounded-lg font-medium self-start sm:self-auto">
+                  Initial baseline established
+                </span>
+              ) : goal.remaining_gap === 0 ? (
+                <span className="text-xs text-[#2F7D5A] bg-[#DCEDE4] border border-[#2F7D5A]/30 px-2.5 py-1 rounded-lg font-medium self-start sm:self-auto">
+                  ✓ Operating at peak efficiency
+                </span>
+              ) : (
+                <span className="text-xs text-[#17251F] bg-[#F7F8F4] border border-[#E3E8E4] px-2.5 py-1 rounded-lg font-medium self-start sm:self-auto">
+                  Target Gap: {goal.remaining_gap}%
+                </span>
+              )}
+            </div>
+
+            {/* 4 Metric Tiles */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              {/* Target Waste Rate */}
+              <div className="bg-white/80 rounded-xl p-3.5 sm:p-4 border border-[#E3E8E4]">
+                <span className="text-xs text-[#66736C] font-medium block">Target Waste Rate</span>
+                <p className="text-xl sm:text-2xl font-bold mt-1 text-[#2F7D5A]">
+                  {goal.target_waste_rate}%
+                </p>
+                <p className="text-[11px] text-[#66736C] mt-1 truncate" title={goal.target_basis}>
+                  {goal.target_basis ? goal.target_basis : 'Historical peak efficiency'}
+                </p>
+              </div>
+
+              {/* Current vs Target */}
+              <div className="bg-white/80 rounded-xl p-3.5 sm:p-4 border border-[#E3E8E4]">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-[#66736C] font-medium block">Current vs Target</span>
+                  <span className="text-[10px] text-[#66736C] bg-[#F7F8F4] px-1.5 py-0.5 rounded border border-[#E3E8E4]">Latest day vs Target</span>
+                </div>
+                <p
+                  className="text-xl sm:text-2xl font-bold mt-1"
+                  style={{
+                    color:
+                      goal.remaining_gap === 0
+                        ? '#2F7D5A'
+                        : goal.remaining_gap > 10
+                        ? '#C45B52'
+                        : '#C89B3C',
+                  }}
+                >
+                  {goal.remaining_gap === 0 ? '0.00%' : `-${goal.remaining_gap}%`}
+                </p>
+                <p className="text-[11px] text-[#66736C] mt-1">
+                  Latest day: {goal.current_waste_rate}% → Target: {goal.target_waste_rate}%
+                </p>
+              </div>
+
+              {/* Est. Quantity Reduction Opportunity */}
+              <div className="bg-white/80 rounded-xl p-3.5 sm:p-4 border border-[#E3E8E4]">
+                <span className="text-xs text-[#66736C] font-medium block">Quantity Opportunity</span>
+                <p className="text-xl sm:text-2xl font-bold mt-1 text-[#17251F]">
+                  {goal.reduction_opportunity?.period_quantity !== null
+                    ? `${goal.reduction_opportunity.period_quantity} units`
+                    : '—'}
+                </p>
+                <p className="text-[11px] text-[#66736C] mt-1 truncate">
+                  {goal.reduction_opportunity?.period_quantity !== null
+                    ? `Per batch (${goal.reduction_opportunity.total_quantity} units overall)`
+                    : 'Requires ≥2 logged dates'}
+                </p>
+              </div>
+
+              {/* Est. Financial Opportunity */}
+              <div className="bg-white/80 rounded-xl p-3.5 sm:p-4 border border-[#E3E8E4]">
+                <span className="text-xs text-[#66736C] font-medium block">Financial Opportunity</span>
+                <p className="text-xl sm:text-2xl font-bold mt-1 text-[#C89B3C]">
+                  {goal.financial_impact?.potential_savings !== null
+                    ? `$${Number(goal.financial_impact.potential_savings).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                    : '—'}
+                </p>
+                <p className="text-[11px] text-[#66736C] mt-1 truncate">
+                  {goal.financial_impact?.potential_savings !== null
+                    ? 'Excess cost above peak rate'
+                    : goal.financial_impact?.status === 'missing_cost'
+                    ? 'Add item unit costs'
+                    : 'Requires ≥3 logs / costed item'}
+                </p>
+              </div>
+            </div>
+
+            {/* Suggested Focus Food Items */}
+            {goal.suggested_focus_items && goal.suggested_focus_items.length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-[#E3E8E4]/60">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-[#17251F]">
+                    Historical Priority Focus Items:
+                  </span>
+                  <span className="text-[11px] text-[#66736C]">
+                    Prioritized by observed historical loss
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                  {goal.suggested_focus_items.map((item) => (
+                    <div
+                      key={item.id}
+                      className="bg-white/90 rounded-xl p-3 border border-[#E3E8E4] flex flex-col justify-between gap-1.5"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-xs text-[#17251F] truncate" title={item.name}>
+                          🍲 {item.name}
+                        </span>
+                        <span
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                            item.priority === 'High'
+                              ? 'bg-[#C45B52]/10 text-[#C45B52]'
+                              : 'bg-[#C89B3C]/10 text-[#8B6B23]'
+                          }`}
+                        >
+                          {item.waste_rate}% historical waste rate
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#66736C] leading-snug line-clamp-2">
+                        {item.suggested_action}
+                      </p>
+                      {item.total_waste_cost !== null && (
+                        <div className="text-[10px] text-[#8B6B23] font-medium pt-1 border-t border-[#E3E8E4]/40 flex justify-between">
+                          <span>Historical Waste Cost:</span>
+                          <span className="font-bold">${item.total_waste_cost}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Bottom Footer / Disclaimer Note */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-[#E3E8E4]/60 text-xs">
+              <div className="text-[11px] text-[#66736C]">
+                {goal.remaining_gap === 0
+                  ? '🎯 Maintaining your best observed rate preserves maximum operational efficiency.'
+                  : `💡 Reducing daily prep waste to ${goal.target_waste_rate}% closes the ${goal.remaining_gap}% efficiency gap.`}
+              </div>
+              <div className="text-[11px] text-[#8B9891] italic">
+                * Target is based on historical performance and is NOT a guaranteed future result.
+              </div>
+            </div>
           </div>
         )}
 

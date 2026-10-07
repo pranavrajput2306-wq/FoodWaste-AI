@@ -111,6 +111,9 @@ export const mlApi = {
 export const analyticsApi = {
   getSummary:         () => api.get('/analytics/summary'),
   getRecommendations: () => api.get('/analytics/recommendations'),
+  getFinancialImpact: () => api.get('/analytics/financial-impact'),
+  getBenchmark:       () => api.get('/analytics/benchmark'),
+  getGoal:            () => api.get('/analytics/goal'),
 };
 
 export default api;

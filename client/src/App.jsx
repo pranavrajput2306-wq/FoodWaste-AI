@@ -9,6 +9,7 @@ import FoodItemsPage from './pages/FoodItemsPage';
 import DemandPage from './pages/DemandPage';
 import PredictionsPage from './pages/PredictionsPage';
 import AnalyticsPage from './pages/AnalyticsPage';
+import FinancialImpactPage from './pages/FinancialImpactPage';
 import RecommendationsPage from './pages/RecommendationsPage';
 import OrganizationPage from './pages/OrganizationPage';
 
@@ -51,6 +52,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <AnalyticsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/financial-impact"
+            element={
+              <ProtectedRoute>
+                <FinancialImpactPage />
               </ProtectedRoute>
             }
           />

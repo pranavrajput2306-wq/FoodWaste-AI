@@ -32,7 +32,7 @@ export default function FoodItemsPage() {
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
-  const [formData, setFormData] = useState({ name: '', category: 'Main Course', unit: 'portions' });
+  const [formData, setFormData] = useState({ name: '', category: 'Main Course', unit: 'portions', unit_cost: '' });
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
   const [alert, setAlert] = useState(null);
@@ -55,14 +55,19 @@ export default function FoodItemsPage() {
 
   const handleOpenAdd = () => {
     setEditingItem(null);
-    setFormData({ name: '', category: 'Main Course', unit: 'portions' });
+    setFormData({ name: '', category: 'Main Course', unit: 'portions', unit_cost: '' });
     setFormError('');
     setModalOpen(true);
   };
 
   const handleOpenEdit = (item) => {
     setEditingItem(item);
-    setFormData({ name: item.name, category: item.category, unit: item.unit });
+    setFormData({
+      name: item.name,
+      category: item.category,
+      unit: item.unit,
+      unit_cost: item.unit_cost !== null && item.unit_cost !== undefined ? item.unit_cost : '',
+    });
     setFormError('');
     setModalOpen(true);
   };
@@ -80,14 +85,27 @@ export default function FoodItemsPage() {
       return;
     }
 
+    const cleanCost = formData.unit_cost !== '' ? Number(formData.unit_cost) : null;
+    if (cleanCost !== null && (isNaN(cleanCost) || cleanCost < 0)) {
+      setFormError('Unit cost must be a non-negative number.');
+      return;
+    }
+
     setSaving(true);
     setFormError('');
     try {
+      const payload = {
+        name: formData.name.trim(),
+        category: formData.category,
+        unit: formData.unit,
+        unit_cost: cleanCost,
+      };
+
       if (editingItem) {
-        await foodItemsApi.update(editingItem.id, formData);
+        await foodItemsApi.update(editingItem.id, payload);
         setAlert({ type: 'success', message: `Updated "${formData.name.trim()}".` });
       } else {
-        await foodItemsApi.create(formData);
+        await foodItemsApi.create(payload);
         setAlert({ type: 'success', message: `Added "${formData.name.trim()}" to food catalog.` });
       }
       handleCloseModal();
@@ -207,6 +225,7 @@ export default function FoodItemsPage() {
                     <th className="py-3.5 px-6 text-xs font-semibold">Name</th>
                     <th className="py-3.5 px-6 text-xs font-semibold">Category</th>
                     <th className="py-3.5 px-6 text-xs font-semibold">Standard Unit</th>
+                    <th className="py-3.5 px-6 text-xs font-semibold">Unit Cost</th>
                     <th className="py-3.5 px-6 text-xs font-semibold">Logged Demand Records</th>
                     <th className="py-3.5 px-6 text-xs font-semibold text-right">Actions</th>
                   </tr>
@@ -221,6 +240,13 @@ export default function FoodItemsPage() {
                         </span>
                       </td>
                       <td className="py-3.5 px-6 text-[#66736C] text-xs font-mono">{item.unit}</td>
+                      <td className="py-3.5 px-6 text-xs font-medium">
+                        {item.unit_cost !== null && item.unit_cost !== undefined ? (
+                          <span className="font-mono text-[#17251F]">₹{Number(item.unit_cost).toFixed(2)}</span>
+                        ) : (
+                          <span className="text-[#66736C]/60 text-xs italic">Not set</span>
+                        )}
+                      </td>
                       <td className="py-3.5 px-6">
                         <span className="text-xs font-semibold text-[#2F7D5A] bg-[#DCEDE4] px-2 py-0.5 rounded-full border border-[#2F7D5A]/25">
                           {item.demand_record_count || 0} records
@@ -314,6 +340,24 @@ export default function FoodItemsPage() {
                     <option key={u} value={u}>{u}</option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-[#17251F] mb-1">
+                  Unit Cost (₹) <span className="text-[#66736C] font-normal">(optional)</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="e.g. 15.50"
+                  value={formData.unit_cost}
+                  onChange={(e) => setFormData({ ...formData, unit_cost: e.target.value })}
+                  className="w-full px-3.5 py-2 rounded-xl text-sm text-[#17251F] bg-[#F7F8F4] border border-[#E3E8E4] focus:outline-none focus:border-[#2F7D5A]"
+                />
+                <p className="text-[11px] text-[#66736C] mt-1">
+                  Cost per {formData.unit || 'unit'} used to calculate financial waste impact.
+                </p>
               </div>
 
               <div className="pt-2 flex justify-end gap-3">

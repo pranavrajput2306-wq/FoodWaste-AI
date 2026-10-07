@@ -4,13 +4,14 @@ import { useAuth } from '../context/AuthContext';
 import { organizationApi } from '../api/axios';
 
 const NAV_ITEMS = [
-  { path: '/dashboard',       icon: '📊', label: 'Dashboard' },
-  { path: '/food-items',      icon: '🍽️', label: 'Food Items' },
-  { path: '/demand',          icon: '📈', label: 'Demand Data' },
-  { path: '/analytics',       icon: '📉', label: 'Analytics' },
-  { path: '/recommendations', icon: '💡', label: 'Recommendations' },
-  { path: '/predictions',     icon: '🤖', label: 'AI Predictions' },
-  { path: '/organization',    icon: '🏢', label: 'Organization' },
+  { path: '/dashboard',        icon: '📊', label: 'Dashboard' },
+  { path: '/food-items',       icon: '🍽️', label: 'Food Items' },
+  { path: '/demand',           icon: '📈', label: 'Demand Data' },
+  { path: '/analytics',        icon: '📉', label: 'Analytics' },
+  { path: '/financial-impact',  icon: '💰', label: 'Financial Impact' },
+  { path: '/recommendations',  icon: '💡', label: 'Recommendations' },
+  { path: '/predictions',      icon: '🤖', label: 'AI Predictions' },
+  { path: '/organization',     icon: '🏢', label: 'Organization' },
 ];
 
 export default function AppLayout({ children }) {
