@@ -60,15 +60,20 @@ def run_training_pipeline(
     df_input: Optional[pd.DataFrame] = None,
     min_samples: int = DEFAULT_MIN_SAMPLES,
     random_state: int = DEFAULT_RANDOM_STATE,
+    artifacts_dir: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Executes the genuine ML training pipeline.
     """
+    target_artifacts_dir = artifacts_dir if artifacts_dir else ARTIFACTS_DIR
+    os.makedirs(target_artifacts_dir, exist_ok=True)
+
     print("=" * 60)
     print("  FOODWASTE AI — REPRODUCIBLE ML TRAINING PIPELINE")
     print("=" * 60)
     print(f"Timestamp: {datetime.now(timezone.utc).isoformat()}Z")
-    print(f"Random State: {random_state} | Min Samples Required: {min_samples}\n")
+    print(f"Random State: {random_state} | Min Samples Required: {min_samples}")
+    print(f"Artifacts Destination: {target_artifacts_dir}\n")
 
     # 1. Load Data
     if df_input is not None:
@@ -88,7 +93,7 @@ def run_training_pipeline(
                 "samples_count": 0,
                 "min_samples_required": min_samples,
             }
-            save_status_artifact(status)
+            save_status_artifact(status, artifacts_dir=target_artifacts_dir)
             return status
 
         raw_df = pd.read_csv(data_source)
@@ -105,7 +110,7 @@ def run_training_pipeline(
             "errors": prep_result["report"]["errors"],
             "warnings": prep_result["report"].get("warnings", []),
         }
-        save_status_artifact(status)
+        save_status_artifact(status, artifacts_dir=target_artifacts_dir)
         return status
 
     cleaned_df = prep_result["data"]
@@ -135,7 +140,7 @@ def run_training_pipeline(
             "min_samples_required": min_samples,
             "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
         }
-        save_status_artifact(status)
+        save_status_artifact(status, artifacts_dir=target_artifacts_dir)
         return status
 
     # 4. Feature Engineering for Task 1: Demand Forecasting
@@ -153,23 +158,35 @@ def run_training_pipeline(
             "samples_count": len(X_demand),
             "min_samples_required": min_samples,
         }
-        save_status_artifact(status)
+        save_status_artifact(status, artifacts_dir=target_artifacts_dir)
         return status
 
     # 5. Time-Aware Split (Demand)
     X_train_d, X_test_d, y_train_d, y_test_d = time_aware_split(
         X_demand, y_demand, dates_demand, test_ratio=0.2
     )
-    print(f"   Demand Task Split -> Train: {len(X_train_d)} samples | Test: {len(X_test_d)} samples")
+    print(f"   Demand Task Split -> Train: {len(X_train_d)} samples | Untouched Final Holdout: {len(X_test_d)} samples")
 
     # 6. Train & Compare Demand Regressors
-    print("\n4. Training & Comparing Demand Regressors (Time-Aware Split):")
+    print("\n4. Training Demand Models (TimeSeriesSplit Validation on Training Portion):")
     best_demand_model, best_demand_name, demand_eval = train_and_compare_demand_models(
-        X_train_d, X_test_d, y_train_d, y_test_d, random_state=random_state
+        X_train_d, X_test_d, y_train_d, y_test_d, n_splits=3, random_state=random_state
     )
+    print(f"   TimeSeriesSplit count : {demand_eval['time_series_splits']} splits on training set")
+    print(f"   Selected Model        : {best_demand_name} (chosen by training validation RMSE)")
+    print("   Final Holdout Results (Evaluated once on untouched test set):")
     for model_name, metrics in demand_eval["comparison"].items():
         prefix = "[SELECTED]" if model_name == best_demand_name else "          "
         print(f"   {prefix} {model_name:26s} | MAE: {metrics['MAE']:8.4f} | RMSE: {metrics['RMSE']:8.4f} | R2: {metrics['R2']:8.4f}")
+
+    print("   Naive Baselines on Same Holdout:")
+    for b_name, b_info in demand_eval["baselines"].items():
+        if b_info.get("applicable"):
+            m = b_info["metrics"]
+            print(f"            {b_info['description']:40s} | MAE: {m['MAE']:8.4f} | RMSE: {m['RMSE']:8.4f} | R2: {m['R2']:8.4f}")
+        else:
+            print(f"            {b_info['description']:40s} | N/A ({b_info.get('reason')})")
+    print(f"   Verdict: {demand_eval['superiority_verdict']}")
 
     # 7. Feature Engineering for Task 2: Waste-Risk Classification
     waste_matrix = prepare_task_matrices(cleaned_df, task="waste_risk")
@@ -180,48 +197,89 @@ def run_training_pipeline(
     X_train_w, X_test_w, y_train_w, y_test_w = time_aware_split(
         X_waste, y_waste, dates_waste, test_ratio=0.2
     )
-    print(f"\n5. Waste-Risk Task Split -> Train: {len(X_train_w)} samples | Test: {len(X_test_w)} samples")
-    print(f"   Train Class Distribution : {dict(pd.Series(y_train_w).value_counts())}")
-    print(f"   Test Class Distribution  : {dict(pd.Series(y_test_w).value_counts())}")
+    print(f"\n5. Waste-Risk Task Split -> Train: {len(X_train_w)} samples | Untouched Final Holdout: {len(X_test_w)} samples")
+    train_dist_counts = dict(pd.Series(y_train_w).value_counts())
+    test_dist_counts = dict(pd.Series(y_test_w).value_counts())
+    print(f"   Train Class Distribution : {train_dist_counts}")
+    print(f"   Holdout Class Distribution: {test_dist_counts}")
 
     # 8. Train & Compare Waste-Risk Classifiers
-    print("\n6. Training & Comparing Waste-Risk Classifiers:")
+    print("\n6. Training Waste-Risk Models (TimeSeriesSplit Validation on Training Portion):")
     best_waste_model, best_waste_name, waste_eval = train_and_compare_waste_risk_models(
-        X_train_w, X_test_w, y_train_w, y_test_w, random_state=random_state
+        X_train_w, X_test_w, y_train_w, y_test_w, n_splits=3, random_state=random_state
     )
+    print(f"   TimeSeriesSplit count : {waste_eval['time_series_splits']} splits on training set")
+    print(f"   Selected Model        : {best_waste_name} (chosen by training validation weighted F1)")
+    print("   Final Holdout Results (Evaluated once on untouched test set):")
     for model_name, metrics in waste_eval["comparison"].items():
         prefix = "[SELECTED]" if model_name == best_waste_name else "          "
         print(f"   {prefix} {model_name:26s} | Acc: {metrics['Accuracy']:6.4f} | F1: {metrics['F1']:6.4f} | Prec: {metrics['Precision']:6.4f} | Rec: {metrics['Recall']:6.4f}")
 
-    # 9. Artifact Serialization
-    print("\n7. Serializing Selected Models & Metadata:")
-    save_artifact(best_demand_model, DEMAND_MODEL_PATH)
-    print(f"   [OK] Best Demand Model saved -> {DEMAND_MODEL_PATH}")
+    print("   Majority-Class Baseline on Same Holdout:")
+    b_info_w = waste_eval["baseline"]
+    if b_info_w.get("applicable"):
+        mb = b_info_w["metrics"]
+        print(f"            {b_info_w['description']:40s} | Acc: {mb['Accuracy']:6.4f} | F1: {mb['F1']:6.4f} | Prec: {mb['Precision']:6.4f} | Rec: {mb['Recall']:6.4f}")
+    else:
+        print(f"            {b_info_w['description']:40s} | N/A")
+    print(f"   Verdict: {waste_eval['superiority_verdict']}")
+    print(f"   Class Coverage Note: {waste_eval['class_distribution']['limitations_note']}")
 
-    save_artifact(best_waste_model, WASTE_RISK_MODEL_PATH)
-    print(f"   [OK] Best Waste Risk Model saved -> {WASTE_RISK_MODEL_PATH}")
+    # 9. Artifact Serialization
+    demand_model_path = os.path.join(target_artifacts_dir, "demand_forecasting_model.joblib")
+    waste_risk_model_path = os.path.join(target_artifacts_dir, "waste_risk_model.joblib")
+    metadata_path = os.path.join(target_artifacts_dir, "training_metadata.joblib")
+    eval_results_path = os.path.join(target_artifacts_dir, "evaluation_results.json")
+
+    print("\n7. Serializing Selected Models & Metadata:")
+    save_artifact(best_demand_model, demand_model_path)
+    print(f"   [OK] Best Demand Model saved -> {demand_model_path}")
+
+    save_artifact(best_waste_model, waste_risk_model_path)
+    print(f"   [OK] Best Waste Risk Model saved -> {waste_risk_model_path}")
 
     metadata = {
         "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
         "random_state": random_state,
         "sample_counts": {
             "total_clean_records": total_valid,
+            "demand_usable_observations": len(X_demand),
             "demand_train_samples": len(X_train_d),
-            "demand_test_samples": len(X_test_d),
+            "demand_holdout_samples": len(X_test_d),
+            "demand_test_samples": len(X_test_d),  # Compatibility
+            "waste_usable_observations": len(X_waste),
             "waste_train_samples": len(X_train_w),
-            "waste_test_samples": len(X_test_w),
+            "waste_holdout_samples": len(X_test_w),
+            "waste_test_samples": len(X_test_w),  # Compatibility
         },
         "demand_model": {
+            "validation_method": demand_eval["validation_method"],
+            "time_series_splits": demand_eval["time_series_splits"],
             "selected_model": best_demand_name,
-            "metrics": demand_eval["best_metrics"],
-            "features": demand_matrix["features"],
+            "validation_metrics": demand_eval["validation_summary"],
+            "holdout_metrics": demand_eval["metrics"],
+            "metrics": demand_eval["metrics"],  # Compatibility
             "comparison": demand_eval["comparison"],
+            "baselines": demand_eval["baselines"],
+            "comparison_against_baselines": demand_eval["comparison_against_baselines"],
+            "ml_beats_baselines": demand_eval["ml_beats_baselines"],
+            "superiority_verdict": demand_eval["superiority_verdict"],
+            "features": demand_matrix["features"],
         },
         "waste_risk_model": {
+            "validation_method": waste_eval["validation_method"],
+            "time_series_splits": waste_eval["time_series_splits"],
             "selected_model": best_waste_name,
-            "metrics": waste_eval["best_metrics"],
-            "features": waste_matrix["features"],
+            "validation_metrics": waste_eval["validation_summary"],
+            "holdout_metrics": waste_eval["metrics"],
+            "metrics": waste_eval["metrics"],  # Compatibility
             "comparison": waste_eval["comparison"],
+            "class_distribution": waste_eval["class_distribution"],
+            "baseline": waste_eval["baseline"],
+            "comparison_against_baseline": waste_eval["comparison_against_baseline"],
+            "ml_beats_baseline": waste_eval["ml_beats_baseline"],
+            "superiority_verdict": waste_eval["superiority_verdict"],
+            "features": waste_matrix["features"],
             "thresholds": {
                 "low_risk": f"< {LOW_RISK_THRESHOLD * 100}% waste",
                 "medium_risk": f"{LOW_RISK_THRESHOLD * 100}% to {HIGH_RISK_THRESHOLD * 100}% waste",
@@ -231,26 +289,27 @@ def run_training_pipeline(
         },
     }
 
-    save_artifact(metadata, METADATA_PATH)
-    print(f"   [OK] Metadata saved -> {METADATA_PATH}")
+    save_artifact(metadata, metadata_path)
+    print(f"   [OK] Metadata saved -> {metadata_path}")
 
     # Structured JSON results
-    with open(EVAL_RESULTS_PATH, "w", encoding="utf-8") as f:
+    with open(eval_results_path, "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2)
-    print(f"   [OK] Evaluation results JSON saved -> {EVAL_RESULTS_PATH}")
+    print(f"   [OK] Evaluation results JSON saved -> {eval_results_path}")
 
     return {
         "status": "success",
         "metadata": metadata,
-        "demand_model_path": DEMAND_MODEL_PATH,
-        "waste_risk_model_path": WASTE_RISK_MODEL_PATH,
+        "demand_model_path": demand_model_path,
+        "waste_risk_model_path": waste_risk_model_path,
     }
 
 
-def save_status_artifact(status_dict: Dict[str, Any]) -> None:
+def save_status_artifact(status_dict: Dict[str, Any], artifacts_dir: Optional[str] = None) -> None:
     """Save pipeline execution status to artifacts directory."""
-    os.makedirs(ARTIFACTS_DIR, exist_ok=True)
-    status_path = os.path.join(ARTIFACTS_DIR, "training_status.json")
+    target_dir = artifacts_dir if artifacts_dir else ARTIFACTS_DIR
+    os.makedirs(target_dir, exist_ok=True)
+    status_path = os.path.join(target_dir, "training_status.json")
     with open(status_path, "w", encoding="utf-8") as f:
         json.dump(status_dict, f, indent=2)
 

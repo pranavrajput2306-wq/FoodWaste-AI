@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { pool } = require('../config/database');
+const { validateEnv } = require('../config/env');
 
 const SALT_ROUNDS = 12;
 
@@ -9,7 +10,8 @@ const SALT_ROUNDS = 12;
 // ---------------------------------------------------------------------------
 
 function generateToken(payload) {
-  return jwt.sign(payload, process.env.JWT_SECRET, {
+  const { jwtSecret } = validateEnv();
+  return jwt.sign(payload, jwtSecret, {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   });
 }

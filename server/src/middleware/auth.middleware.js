@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { validateEnv } = require('../config/env');
 
 /**
  * Authentication middleware.
@@ -18,7 +19,8 @@ function authenticate(req, res, next) {
   const token = authHeader.split(' ')[1];
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const { jwtSecret } = validateEnv();
+    const decoded = jwt.verify(token, jwtSecret);
     req.user = decoded; // { id, email, role }
     next();
   } catch (error) {

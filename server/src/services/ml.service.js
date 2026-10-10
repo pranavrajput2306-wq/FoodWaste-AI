@@ -24,14 +24,18 @@ async function callMLService(endpoint, options = {}) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
+  const internalSecret = process.env.ML_SERVICE_SECRET;
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(internalSecret ? { 'X-Internal-Service-Key': internalSecret } : {}),
+    ...(options.headers || {}),
+  };
+
   try {
     const response = await fetch(url, {
       ...options,
       signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(options.headers || {}),
-      },
+      headers,
     });
 
     clearTimeout(timeoutId);

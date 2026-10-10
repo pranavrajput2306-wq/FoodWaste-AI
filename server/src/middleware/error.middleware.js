@@ -3,19 +3,40 @@
  * Must be registered LAST in the Express app (after all routes).
  */
 function errorHandler(err, req, res, next) {
-  // Log error details server-side
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  // Always log full error details server-side for operational diagnostics
   console.error(`[ERROR] ${req.method} ${req.originalUrl} →`, err.message);
-  if (process.env.NODE_ENV === 'development') {
+  if (!isProduction) {
     console.error(err.stack);
   }
 
   // Determine status code
   const statusCode = err.statusCode || err.status || 500;
 
+  let clientMessage = err.message || 'An unexpected error occurred.';
+
+  // In production, sanitize 500 server errors and sensitive database errors to prevent internal info leakage
+  if (isProduction) {
+    const isSensitive =
+      statusCode >= 500 ||
+      err.code === 'ER_PARSE_ERROR' ||
+      err.code === 'ER_NO_SUCH_TABLE' ||
+      err.code === 'ER_BAD_FIELD_ERROR' ||
+      err.code === 'ECONNREFUSED' ||
+      /sql|syntax|password|secret|path|column|table|jwt/i.test(err.message || '');
+
+    if (isSensitive) {
+      clientMessage = statusCode === 500
+        ? 'Internal server error. Please try again later.'
+        : 'A database or service error occurred.';
+    }
+  }
+
   res.status(statusCode).json({
     success: false,
-    message: err.message || 'An unexpected error occurred.',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+    message: clientMessage,
+    ...(!isProduction && { stack: err.stack }),
   });
 }
 

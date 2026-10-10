@@ -70,26 +70,49 @@ def add_lag_features(
     lags: Optional[List[int]] = None,
 ) -> pd.DataFrame:
     """
-    Add lagged consumption features per food_item_id.
-    Uses shift(lag) where lag >= 1. Past observations only.
+    Add calendar-date-aware lagged consumption features per food_item_id.
+    Lag k corresponds strictly to k calendar days prior to record_date (calendar-aware).
+    Missing calendar dates are NOT treated as consecutive observations and will yield NaN.
     """
     if lags is None:
         lags = [1, 3, 7]
 
     df = df.copy()
-    df = df.sort_values(["food_item_id", "record_date"]).reset_index(drop=True)
+    if df.empty:
+        return df
+
+    # Work with datetime for exact calendar arithmetic
+    df["_cal_date"] = pd.to_datetime(df["record_date"])
+    df = df.sort_values(["food_item_id", "_cal_date"]).reset_index(drop=True)
 
     for lag in lags:
-        df[f"sold_lag_{lag}"] = (
-            df.groupby("food_item_id")["quantity_sold"]
-            .shift(lag)
-        )
+        # Build lookup table for exact calendar lagged matching:
+        # A record on date D matches a historical record on date D - lag days.
+        lookup_cols = ["food_item_id", "_cal_date", "quantity_sold"]
         if "quantity_prepared" in df.columns:
-            df[f"prepared_lag_{lag}"] = (
-                df.groupby("food_item_id")["quantity_prepared"]
-                .shift(lag)
-            )
+            lookup_cols.append("quantity_prepared")
 
+        lookup = df[lookup_cols].drop_duplicates(subset=["food_item_id", "_cal_date"]).copy()
+        lookup["_join_date"] = lookup["_cal_date"] + pd.to_timedelta(lag, unit="D")
+
+        rename_map = {"quantity_sold": f"sold_lag_{lag}"}
+        if "quantity_prepared" in df.columns:
+            rename_map["quantity_prepared"] = f"prepared_lag_{lag}"
+
+        merged_cols = ["food_item_id", "_join_date", f"sold_lag_{lag}"]
+        if "quantity_prepared" in df.columns:
+            merged_cols.append(f"prepared_lag_{lag}")
+
+        lookup_renamed = lookup.rename(columns=rename_map)[merged_cols]
+
+        df = df.merge(
+            lookup_renamed,
+            left_on=["food_item_id", "_cal_date"],
+            right_on=["food_item_id", "_join_date"],
+            how="left",
+        ).drop(columns=["_join_date"])
+
+    df = df.drop(columns=["_cal_date"])
     return df
 
 
@@ -98,35 +121,64 @@ def add_rolling_features(
     windows: Optional[List[int]] = None,
 ) -> pd.DataFrame:
     """
-    Add rolling mean / std of quantity_sold and waste_ratio per food_item_id.
-    CRITICAL: Always applies shift(1) BEFORE the rolling window so that the
-    current day's value is NEVER included in the rolling aggregation.
+    Add calendar-date-aware rolling mean / std of quantity_sold and waste_ratio per food_item_id.
+    CRITICAL: Preserves the shift(1) rule so that the current day's value is NEVER included.
+    Uses continuous daily calendar spacing (freq='D') so missing calendar dates are not
+    treated as consecutive observations.
     """
     if windows is None:
         windows = [3, 7]
 
     df = df.copy()
-    df = df.sort_values(["food_item_id", "record_date"]).reset_index(drop=True)
+    if df.empty:
+        return df
 
-    for window in windows:
-        # Shift(1) guarantees strictly historical data is aggregated
-        shifted_sold = df.groupby("food_item_id")["quantity_sold"].shift(1)
-        df[f"sold_rolling_mean_{window}"] = (
-            df.groupby("food_item_id")["quantity_sold"]
-            .transform(lambda x: x.shift(1).rolling(window, min_periods=1).mean())
-        )
-        df[f"sold_rolling_std_{window}"] = (
-            df.groupby("food_item_id")["quantity_sold"]
-            .transform(lambda x: x.shift(1).rolling(window, min_periods=1).std().fillna(0.0))
-        )
+    df["_cal_date"] = pd.to_datetime(df["record_date"])
+    df = df.sort_values(["food_item_id", "_cal_date"]).reset_index(drop=True)
 
-        if "waste_ratio" in df.columns:
-            df[f"waste_ratio_rolling_mean_{window}"] = (
-                df.groupby("food_item_id")["waste_ratio"]
-                .transform(lambda x: x.shift(1).rolling(window, min_periods=1).mean())
+    processed_groups = []
+    for item_id, group in df.groupby("food_item_id", sort=False):
+        min_date = group["_cal_date"].min()
+        max_date = group["_cal_date"].max()
+
+        full_idx = pd.date_range(min_date, max_date, freq="D")
+        unique_g = group.drop_duplicates(subset=["_cal_date"]).set_index("_cal_date")
+
+        value_cols = ["quantity_sold"]
+        if "waste_ratio" in unique_g.columns:
+            value_cols.append("waste_ratio")
+
+        daily = unique_g[value_cols].reindex(full_idx)
+
+        rolling_cols = {}
+        for window in windows:
+            # Shift(1) guarantees strictly historical calendar days are aggregated
+            shifted_sold = daily["quantity_sold"].shift(1)
+            rolling_cols[f"sold_rolling_mean_{window}"] = (
+                shifted_sold.rolling(window, min_periods=1).mean()
+            )
+            rolling_cols[f"sold_rolling_std_{window}"] = (
+                shifted_sold.rolling(window, min_periods=1).std().fillna(0.0)
             )
 
-    return df
+            if "waste_ratio" in daily.columns:
+                shifted_waste = daily["waste_ratio"].shift(1)
+                rolling_cols[f"waste_ratio_rolling_mean_{window}"] = (
+                    shifted_waste.rolling(window, min_periods=1).mean()
+                )
+
+        rolling_df = pd.DataFrame(rolling_cols, index=full_idx)
+
+        merged_group = group.merge(
+            rolling_df,
+            left_on="_cal_date",
+            right_index=True,
+            how="left",
+        )
+        processed_groups.append(merged_group)
+
+    result = pd.concat(processed_groups, ignore_index=True).drop(columns=["_cal_date"])
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -170,10 +222,10 @@ def label_waste_risk(
 # ---------------------------------------------------------------------------
 
 # Demand forecasting predicts quantity_sold on a service day.
-# Allowed: date parts, planned quantity_prepared, past lags, past rolling stats.
-# FORBIDDEN: current day's quantity_sold (target), current day's quantity_wasted.
+# Allowed: date parts, past lags, past rolling stats.
+# FORBIDDEN: quantity_prepared (exogenous demand should not depend on prep),
+# current day's quantity_sold (target), current day's quantity_wasted.
 DEMAND_FORECAST_FEATURES: List[str] = [
-    "quantity_prepared",
     "day_of_week",
     "day_of_month",
     "month",

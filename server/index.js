@@ -1,4 +1,9 @@
 require('dotenv').config();
+const { validateEnv } = require('./src/config/env');
+
+// Validate environment early before starting resources
+validateEnv();
+
 const app = require('./src/app');
 const { testConnection } = require('./src/config/database');
 const { initializeSchema } = require('./src/config/schema');

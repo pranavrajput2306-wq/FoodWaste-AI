@@ -11,6 +11,7 @@ Endpoints:
   POST /predict/waste-risk
 """
 
+import json
 import os
 import sys
 from datetime import datetime, timezone
@@ -23,7 +24,7 @@ if PROJECT_ROOT not in sys.path:
 
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 
@@ -33,6 +34,7 @@ from ml.src.models.model_trainer import (
     WASTE_RISK_MODEL_PATH,
     METADATA_PATH,
     EVAL_RESULTS_PATH,
+    ARTIFACTS_DIR,
 )
 from ml.src.features.feature_engineering import (
     add_date_features,
@@ -43,8 +45,24 @@ from ml.src.features.feature_engineering import (
     RISK_LABEL_NAMES,
 )
 
+TRAINING_STATUS_PATH = os.path.join(ARTIFACTS_DIR, "training_status.json")
+
+def get_production_training_status() -> Dict[str, Any]:
+    """
+    Reads genuine training status to ensure unverified/synthetic models
+    are never treated as valid production models.
+    """
+    if os.path.exists(TRAINING_STATUS_PATH):
+        try:
+            with open(TRAINING_STATUS_PATH, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"status": "unverified", "message": "No verified production training record found."}
+
+
 # ---------------------------------------------------------------------------
-# FastAPI Initialization
+# FastAPI Initialization & Security Boundary
 # ---------------------------------------------------------------------------
 app = FastAPI(
     title="FoodWaste AI — ML Prediction Service",
@@ -52,14 +70,45 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# CORS setup for development
+# CORS configuration: Production restricts to configured backend/gateway origin
+ALLOWED_ORIGINS_ENV = os.environ.get("ML_ALLOWED_ORIGINS", "")
+if ALLOWED_ORIGINS_ENV:
+    cors_origins = [o.strip() for o in ALLOWED_ORIGINS_ENV.split(",") if o.strip()]
+else:
+    # Safe defaults for internal gateway communication
+    cors_origins = ["http://localhost:5000", "http://127.0.0.1:5000"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins if os.environ.get("NODE_ENV") == "production" else ["*"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def verify_service_boundary(request: Request, call_next):
+    """
+    Ensures FastAPI prediction endpoints are protected by an internal shared secret
+    when ML_SERVICE_SECRET is configured, preventing direct unauthenticated public access.
+    Health checks remain open for deployment readiness/liveness probes.
+    """
+    expected_secret = os.environ.get("ML_SERVICE_SECRET")
+    if expected_secret and request.url.path.startswith("/predict/"):
+        client_secret = request.headers.get("X-Internal-Service-Key")
+        if not client_secret or client_secret != expected_secret:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "success": False,
+                    "status": "unauthorized",
+                    "message": "Direct unauthenticated access prohibited. Requests must route via the authenticated backend gateway.",
+                },
+            )
+    return await call_next(request)
+
 
 
 # ---------------------------------------------------------------------------
@@ -181,6 +230,17 @@ def construct_inference_feature_row(
     if missing_cols:
         return False, None, f"Missing engineered features: {missing_cols}"
 
+    # Verify that required calendar lag/rolling features are non-null
+    # (i.e. strictly sufficient continuous historical calendar records exist without fabricating values)
+    nan_cols = [c for c in req_cols if pd.isna(feat_row[c].iloc[0])]
+    if nan_cols:
+        return (
+            False,
+            None,
+            f"Insufficient historical calendar records for food item #{food_item_id} to compute "
+            f"calendar-aware features without fabricating values (missing calendar history for: {nan_cols}).",
+        )
+
     return True, feat_row[req_cols], None
 
 
@@ -192,15 +252,22 @@ def construct_inference_feature_row(
 def health_check() -> Dict[str, Any]:
     """
     Health check verifying service status and model artifact presence.
+    Ensures production inference cannot treat unverified/synthetic artifacts as valid production models.
     """
+    prod_status = get_production_training_status()
+    is_verified_success = prod_status.get("status") == "success"
+
     demand_exists = os.path.exists(DEMAND_MODEL_PATH) and os.path.getsize(DEMAND_MODEL_PATH) > 0
     waste_exists = os.path.exists(WASTE_RISK_MODEL_PATH) and os.path.getsize(WASTE_RISK_MODEL_PATH) > 0
+
+    models_valid_and_available = is_verified_success and demand_exists and waste_exists
 
     return {
         "status": "healthy",
         "service": "foodwaste-ml-api",
         "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
-        "models_available": demand_exists and waste_exists,
+        "models_available": models_valid_and_available,
+        "training_status": prod_status.get("status", "unknown"),
         "artifacts": {
             "demand_model": demand_exists,
             "waste_risk_model": waste_exists,
@@ -215,7 +282,20 @@ def predict_demand(req: PredictionRequest) -> Dict[str, Any]:
     Forecast expected demand quantity for a food item on target_date.
     Never uses future information or fake values.
     """
-    # 1. Model Availability Check
+    # 1. Model Availability & Verification Check
+    prod_status = get_production_training_status()
+    if prod_status.get("status") == "insufficient_data":
+        return {
+            "success": False,
+            "status": "insufficient_data",
+            "message": prod_status.get(
+                "message",
+                "Production models are unavailable due to insufficient genuine training data."
+            ),
+            "food_item_id": req.food_item_id,
+            "target_date": req.target_date,
+        }
+
     if not os.path.exists(DEMAND_MODEL_PATH) or os.path.getsize(DEMAND_MODEL_PATH) == 0:
         return {
             "success": False,
@@ -284,7 +364,20 @@ def predict_waste_risk(req: PredictionRequest) -> Dict[str, Any]:
     Classify food waste risk tier (Low, Medium, High) for a food item on target_date.
     Never uses ground-truth waste metrics or fake predictions.
     """
-    # 1. Model Availability Check
+    # 1. Model Availability & Verification Check
+    prod_status = get_production_training_status()
+    if prod_status.get("status") == "insufficient_data":
+        return {
+            "success": False,
+            "status": "insufficient_data",
+            "message": prod_status.get(
+                "message",
+                "Production models are unavailable due to insufficient genuine training data."
+            ),
+            "food_item_id": req.food_item_id,
+            "target_date": req.target_date,
+        }
+
     if not os.path.exists(WASTE_RISK_MODEL_PATH) or os.path.getsize(WASTE_RISK_MODEL_PATH) == 0:
         return {
             "success": False,
