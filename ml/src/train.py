@@ -86,7 +86,7 @@ def run_training_pipeline(
             data_source = os.path.join(base_dir, "data", "raw", "demand_records.csv")
 
         if not os.path.exists(data_source):
-            print(f"❌ Data file not found: {data_source}")
+            print(f"[ERROR] Data file not found: {data_source}")
             status = {
                 "status": "insufficient_data",
                 "message": f"Data file does not exist at {data_source}.",
@@ -104,7 +104,7 @@ def run_training_pipeline(
     # 2. Preprocess & Validate
     prep_result = preprocess_pipeline(raw_df)
     if not prep_result["success"]:
-        print(f"❌ Preprocessing validation failed: {prep_result['report']['errors']}")
+        print(f"[ERROR] Preprocessing validation failed: {prep_result['report']['errors']}")
         status = {
             "status": "validation_failed",
             "errors": prep_result["report"]["errors"],
@@ -151,7 +151,7 @@ def run_training_pipeline(
     dates_demand = demand_matrix["dates"]
 
     if len(X_demand) < int(min_samples * 0.7):
-        print(f"❌ Insufficient post-lag samples ({len(X_demand)} remaining after lag window drop).")
+        print(f"[ERROR] Insufficient post-lag samples ({len(X_demand)} remaining after lag window drop).")
         status = {
             "status": "insufficient_data",
             "message": f"Only {len(X_demand)} samples remain after lag calculation.",
@@ -232,8 +232,21 @@ def run_training_pipeline(
     eval_results_path = os.path.join(target_artifacts_dir, "evaluation_results.json")
 
     print("\n7. Serializing Selected Models & Metadata:")
-    save_artifact(best_demand_model, demand_model_path)
-    print(f"   [OK] Best Demand Model saved -> {demand_model_path}")
+
+    # Production Validation Gate for Demand Model:
+    # An ML demand model must NOT be treated as a valid production model when it does not
+    # demonstrate improvement over the appropriate naive baseline.
+    demand_ml_validated = bool(demand_eval.get("ml_beats_baselines", False))
+    if demand_ml_validated:
+        save_artifact(best_demand_model, demand_model_path)
+        print(f"   [OK] Best Demand Model validated and saved -> {demand_model_path}")
+    else:
+        if os.path.exists(demand_model_path):
+            try:
+                os.remove(demand_model_path)
+            except Exception:
+                pass
+        print(f"   [BLOCKED] Demand ML model NOT published to production: did not demonstrate improvement over naive baseline.")
 
     save_artifact(best_waste_model, waste_risk_model_path)
     print(f"   [OK] Best Waste Risk Model saved -> {waste_risk_model_path}")
@@ -256,13 +269,14 @@ def run_training_pipeline(
             "validation_method": demand_eval["validation_method"],
             "time_series_splits": demand_eval["time_series_splits"],
             "selected_model": best_demand_name,
+            "is_production_validated": demand_ml_validated,
             "validation_metrics": demand_eval["validation_summary"],
             "holdout_metrics": demand_eval["metrics"],
             "metrics": demand_eval["metrics"],  # Compatibility
             "comparison": demand_eval["comparison"],
             "baselines": demand_eval["baselines"],
             "comparison_against_baselines": demand_eval["comparison_against_baselines"],
-            "ml_beats_baselines": demand_eval["ml_beats_baselines"],
+            "ml_beats_baselines": demand_ml_validated,
             "superiority_verdict": demand_eval["superiority_verdict"],
             "features": demand_matrix["features"],
         },
@@ -297,10 +311,35 @@ def run_training_pipeline(
         json.dump(metadata, f, indent=2)
     print(f"   [OK] Evaluation results JSON saved -> {eval_results_path}")
 
+    if demand_ml_validated:
+        pipeline_status = {
+            "status": "success",
+            "demand_status": "success",
+            "demand_validated": True,
+            "waste_risk_status": "success",
+            "waste_risk_validated": True,
+            "message": "Production models trained and verified successfully.",
+            "samples_count": total_valid,
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+        }
+    else:
+        pipeline_status = {
+            "status": "unvalidated_demand",
+            "demand_status": "unvalidated_against_baseline",
+            "demand_validated": False,
+            "waste_risk_status": "success",
+            "waste_risk_validated": True,
+            "message": "Demand ML model did not demonstrate improvement over naive baseline on holdout evaluation; demand artifact not published. Waste-risk model verified.",
+            "samples_count": total_valid,
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+        }
+    save_status_artifact(pipeline_status, artifacts_dir=target_artifacts_dir)
+    print(f"   [OK] Training status JSON saved -> {os.path.join(target_artifacts_dir, 'training_status.json')}")
+
     return {
-        "status": "success",
+        "status": pipeline_status["status"],
         "metadata": metadata,
-        "demand_model_path": demand_model_path,
+        "demand_model_path": demand_model_path if demand_ml_validated else None,
         "waste_risk_model_path": waste_risk_model_path,
     }
 
@@ -326,9 +365,9 @@ def main():
         min_samples=args.min_samples,
         random_state=args.random_state,
     )
-    if result.get("status") == "insufficient_data":
+    if result.get("status") in ["insufficient_data", "unvalidated_demand", "success"]:
         sys.exit(0)
-    elif result.get("status") != "success":
+    else:
         sys.exit(1)
 
 

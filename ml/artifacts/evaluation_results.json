@@ -1,0 +1,642 @@
+{
+  "timestamp": "2026-10-10T21:09:15.396888+00:00Z",
+  "random_state": 42,
+  "sample_counts": {
+    "total_clean_records": 240,
+    "demand_usable_observations": 75,
+    "demand_train_samples": 60,
+    "demand_holdout_samples": 15,
+    "demand_test_samples": 15,
+    "waste_usable_observations": 75,
+    "waste_train_samples": 60,
+    "waste_holdout_samples": 15,
+    "waste_test_samples": 15
+  },
+  "demand_model": {
+    "validation_method": "TimeSeriesSplit (n_splits=3) on training set only",
+    "time_series_splits": 3,
+    "selected_model": "RandomForestRegressor",
+    "is_production_validated": false,
+    "validation_metrics": {
+      "LinearRegression": {
+        "MAE": 9.3111,
+        "RMSE": 14.5986,
+        "R2": 0.5533
+      },
+      "RandomForestRegressor": {
+        "MAE": 9.3111,
+        "RMSE": 14.5986,
+        "R2": 0.5533
+      },
+      "GradientBoostingRegressor": {
+        "MAE": 9.3111,
+        "RMSE": 14.5986,
+        "R2": 0.5533
+      }
+    },
+    "holdout_metrics": {
+      "MAE": 23.492,
+      "RMSE": 28.7228,
+      "R2": -7.4969
+    },
+    "metrics": {
+      "MAE": 23.492,
+      "RMSE": 28.7228,
+      "R2": -7.4969
+    },
+    "comparison": {
+      "LinearRegression": {
+        "MAE": 261.4867,
+        "RMSE": 339.314,
+        "R2": -1184.8073
+      },
+      "RandomForestRegressor": {
+        "MAE": 23.492,
+        "RMSE": 28.7228,
+        "R2": -7.4969
+      },
+      "GradientBoostingRegressor": {
+        "MAE": 58.9916,
+        "RMSE": 62.3187,
+        "R2": -38.9988
+      }
+    },
+    "baselines": {
+      "lag_1": {
+        "description": "Previous-day demand (calendar lag-1)",
+        "applicable": true,
+        "valid_samples": 15,
+        "total_samples": 15,
+        "metrics": {
+          "MAE": 17.2667,
+          "RMSE": 27.3142,
+          "R2": -6.684
+        }
+      },
+      "lag_7": {
+        "description": "Previous-7-day demand (calendar lag-7)",
+        "applicable": true,
+        "valid_samples": 15,
+        "total_samples": 15,
+        "metrics": {
+          "MAE": 25.6667,
+          "RMSE": 38.0972,
+          "R2": -13.9485
+        }
+      },
+      "historical_mean": {
+        "description": "Historical training set mean (55.52)",
+        "applicable": true,
+        "valid_samples": 15,
+        "total_samples": 15,
+        "metrics": {
+          "MAE": 33.6833,
+          "RMSE": 35.095,
+          "R2": -11.6853
+        }
+      },
+      "rolling_mean_7": {
+        "description": "Historical 7-day rolling mean (shift-1 prior days)",
+        "applicable": true,
+        "valid_samples": 15,
+        "total_samples": 15,
+        "metrics": {
+          "MAE": 10.2286,
+          "RMSE": 12.9527,
+          "R2": -0.7279
+        }
+      }
+    },
+    "comparison_against_baselines": {
+      "comparisons": {
+        "lag_1": {
+          "applicable": true,
+          "baseline_metrics": {
+            "MAE": 17.2667,
+            "RMSE": 27.3142,
+            "R2": -6.684
+          },
+          "ml_metrics": {
+            "MAE": 23.492,
+            "RMSE": 28.7228,
+            "R2": -7.4969
+          },
+          "beats_rmse": false,
+          "beats_mae": false,
+          "ml_beats_baseline": false,
+          "rmse_improvement": -1.4086,
+          "mae_improvement": -6.2253
+        },
+        "lag_7": {
+          "applicable": true,
+          "baseline_metrics": {
+            "MAE": 25.6667,
+            "RMSE": 38.0972,
+            "R2": -13.9485
+          },
+          "ml_metrics": {
+            "MAE": 23.492,
+            "RMSE": 28.7228,
+            "R2": -7.4969
+          },
+          "beats_rmse": true,
+          "beats_mae": true,
+          "ml_beats_baseline": true,
+          "rmse_improvement": 9.3744,
+          "mae_improvement": 2.1747
+        },
+        "historical_mean": {
+          "applicable": true,
+          "baseline_metrics": {
+            "MAE": 33.6833,
+            "RMSE": 35.095,
+            "R2": -11.6853
+          },
+          "ml_metrics": {
+            "MAE": 23.492,
+            "RMSE": 28.7228,
+            "R2": -7.4969
+          },
+          "beats_rmse": true,
+          "beats_mae": true,
+          "ml_beats_baseline": true,
+          "rmse_improvement": 6.3722,
+          "mae_improvement": 10.1913
+        },
+        "rolling_mean_7": {
+          "applicable": true,
+          "baseline_metrics": {
+            "MAE": 10.2286,
+            "RMSE": 12.9527,
+            "R2": -0.7279
+          },
+          "ml_metrics": {
+            "MAE": 23.492,
+            "RMSE": 28.7228,
+            "R2": -7.4969
+          },
+          "beats_rmse": false,
+          "beats_mae": false,
+          "ml_beats_baseline": false,
+          "rmse_improvement": -15.7701,
+          "mae_improvement": -13.2634
+        }
+      },
+      "applicable_baselines_count": 4,
+      "best_baseline_key": "rolling_mean_7",
+      "best_baseline_rmse": 12.9527,
+      "best_baseline_mae": 10.2286,
+      "beats_best_baseline": false,
+      "ml_beats_all_applicable_baselines": false,
+      "ml_beats_baselines": false,
+      "superiority_verdict": "ML DOES NOT beat best applicable baseline (rolling_mean_7: RMSE 12.9527 vs ML RMSE 28.7228)"
+    },
+    "ml_beats_baselines": false,
+    "superiority_verdict": "ML DOES NOT beat best applicable baseline (rolling_mean_7: RMSE 12.9527 vs ML RMSE 28.7228)",
+    "features": [
+      "day_of_week",
+      "day_of_month",
+      "month",
+      "week_of_year",
+      "is_weekend",
+      "quarter",
+      "sold_lag_1",
+      "sold_lag_3",
+      "sold_lag_7",
+      "sold_rolling_mean_3",
+      "sold_rolling_mean_7",
+      "sold_rolling_std_3",
+      "sold_rolling_std_7",
+      "waste_ratio_rolling_mean_3",
+      "waste_ratio_rolling_mean_7"
+    ]
+  },
+  "waste_risk_model": {
+    "validation_method": "TimeSeriesSplit (n_splits=3) on training set only",
+    "time_series_splits": 3,
+    "selected_model": "LogisticRegression",
+    "validation_metrics": {
+      "LogisticRegression": {
+        "F1": 0.8735,
+        "Accuracy": 0.9111,
+        "Precision": 0.8459,
+        "Recall": 0.9111
+      },
+      "RandomForestClassifier": {
+        "F1": 0.8735,
+        "Accuracy": 0.9111,
+        "Precision": 0.8459,
+        "Recall": 0.9111
+      },
+      "GradientBoostingClassifier": {
+        "F1": 0.8735,
+        "Accuracy": 0.9111,
+        "Precision": 0.8459,
+        "Recall": 0.9111
+      }
+    },
+    "holdout_metrics": {
+      "Accuracy": 0.2,
+      "Precision": 0.0769,
+      "Recall": 0.2,
+      "F1": 0.1111,
+      "confusion_matrix": [
+        [
+          0,
+          8,
+          0
+        ],
+        [
+          2,
+          3,
+          0
+        ],
+        [
+          0,
+          2,
+          0
+        ]
+      ],
+      "classification_report": {
+        "Low": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 8.0
+        },
+        "Medium": {
+          "precision": 0.23076923076923078,
+          "recall": 0.6,
+          "f1-score": 0.3333333333333333,
+          "support": 5.0
+        },
+        "High": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 2.0
+        },
+        "accuracy": 0.2,
+        "macro avg": {
+          "precision": 0.07692307692307693,
+          "recall": 0.19999999999999998,
+          "f1-score": 0.1111111111111111,
+          "support": 15.0
+        },
+        "weighted avg": {
+          "precision": 0.07692307692307693,
+          "recall": 0.2,
+          "f1-score": 0.1111111111111111,
+          "support": 15.0
+        }
+      }
+    },
+    "metrics": {
+      "Accuracy": 0.2,
+      "Precision": 0.0769,
+      "Recall": 0.2,
+      "F1": 0.1111,
+      "confusion_matrix": [
+        [
+          0,
+          8,
+          0
+        ],
+        [
+          2,
+          3,
+          0
+        ],
+        [
+          0,
+          2,
+          0
+        ]
+      ],
+      "classification_report": {
+        "Low": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 8.0
+        },
+        "Medium": {
+          "precision": 0.23076923076923078,
+          "recall": 0.6,
+          "f1-score": 0.3333333333333333,
+          "support": 5.0
+        },
+        "High": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 2.0
+        },
+        "accuracy": 0.2,
+        "macro avg": {
+          "precision": 0.07692307692307693,
+          "recall": 0.19999999999999998,
+          "f1-score": 0.1111111111111111,
+          "support": 15.0
+        },
+        "weighted avg": {
+          "precision": 0.07692307692307693,
+          "recall": 0.2,
+          "f1-score": 0.1111111111111111,
+          "support": 15.0
+        }
+      }
+    },
+    "comparison": {
+      "LogisticRegression": {
+        "Accuracy": 0.2,
+        "Precision": 0.0769,
+        "Recall": 0.2,
+        "F1": 0.1111,
+        "confusion_matrix": [
+          [
+            0,
+            8,
+            0
+          ],
+          [
+            2,
+            3,
+            0
+          ],
+          [
+            0,
+            2,
+            0
+          ]
+        ],
+        "classification_report": {
+          "Low": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 8.0
+          },
+          "Medium": {
+            "precision": 0.23076923076923078,
+            "recall": 0.6,
+            "f1-score": 0.3333333333333333,
+            "support": 5.0
+          },
+          "High": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 2.0
+          },
+          "accuracy": 0.2,
+          "macro avg": {
+            "precision": 0.07692307692307693,
+            "recall": 0.19999999999999998,
+            "f1-score": 0.1111111111111111,
+            "support": 15.0
+          },
+          "weighted avg": {
+            "precision": 0.07692307692307693,
+            "recall": 0.2,
+            "f1-score": 0.1111111111111111,
+            "support": 15.0
+          }
+        }
+      },
+      "RandomForestClassifier": {
+        "Accuracy": 0.4,
+        "Precision": 0.3796,
+        "Recall": 0.4,
+        "F1": 0.3878,
+        "confusion_matrix": [
+          [
+            5,
+            2,
+            1
+          ],
+          [
+            3,
+            1,
+            1
+          ],
+          [
+            1,
+            1,
+            0
+          ]
+        ],
+        "classification_report": {
+          "Low": {
+            "precision": 0.5555555555555556,
+            "recall": 0.625,
+            "f1-score": 0.5882352941176471,
+            "support": 8.0
+          },
+          "Medium": {
+            "precision": 0.25,
+            "recall": 0.2,
+            "f1-score": 0.2222222222222222,
+            "support": 5.0
+          },
+          "High": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 2.0
+          },
+          "accuracy": 0.4,
+          "macro avg": {
+            "precision": 0.26851851851851855,
+            "recall": 0.27499999999999997,
+            "f1-score": 0.2701525054466231,
+            "support": 15.0
+          },
+          "weighted avg": {
+            "precision": 0.37962962962962965,
+            "recall": 0.4,
+            "f1-score": 0.38779956427015255,
+            "support": 15.0
+          }
+        }
+      },
+      "GradientBoostingClassifier": {
+        "Accuracy": 0.3333,
+        "Precision": 0.2889,
+        "Recall": 0.3333,
+        "F1": 0.2538,
+        "confusion_matrix": [
+          [
+            1,
+            7,
+            0
+          ],
+          [
+            1,
+            4,
+            0
+          ],
+          [
+            1,
+            1,
+            0
+          ]
+        ],
+        "classification_report": {
+          "Low": {
+            "precision": 0.3333333333333333,
+            "recall": 0.125,
+            "f1-score": 0.18181818181818182,
+            "support": 8.0
+          },
+          "Medium": {
+            "precision": 0.3333333333333333,
+            "recall": 0.8,
+            "f1-score": 0.47058823529411764,
+            "support": 5.0
+          },
+          "High": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 2.0
+          },
+          "accuracy": 0.3333333333333333,
+          "macro avg": {
+            "precision": 0.2222222222222222,
+            "recall": 0.30833333333333335,
+            "f1-score": 0.2174688057040998,
+            "support": 15.0
+          },
+          "weighted avg": {
+            "precision": 0.28888888888888886,
+            "recall": 0.3333333333333333,
+            "f1-score": 0.2538324420677362,
+            "support": 15.0
+          }
+        }
+      }
+    },
+    "class_distribution": {
+      "training": {
+        "1": 56,
+        "0": 3,
+        "2": 1
+      },
+      "holdout": {
+        "0": 8,
+        "1": 5,
+        "2": 2
+      },
+      "present_classes_in_holdout": [
+        "Low",
+        "Medium",
+        "High"
+      ],
+      "absent_classes_in_holdout": [],
+      "all_three_classes_present": true,
+      "limitations_note": "All three classes (Low, Medium, High) present in holdout."
+    },
+    "baseline": {
+      "description": "Majority class from training portion: class 1 (Medium)",
+      "applicable": true,
+      "majority_class": 1,
+      "majority_label": "Medium",
+      "metrics": {
+        "Accuracy": 0.3333,
+        "Precision": 0.1111,
+        "Recall": 0.3333,
+        "F1": 0.1667,
+        "confusion_matrix": [
+          [
+            0,
+            8,
+            0
+          ],
+          [
+            0,
+            5,
+            0
+          ],
+          [
+            0,
+            2,
+            0
+          ]
+        ],
+        "classification_report": {
+          "Low": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 8.0
+          },
+          "Medium": {
+            "precision": 0.3333333333333333,
+            "recall": 1.0,
+            "f1-score": 0.5,
+            "support": 5.0
+          },
+          "High": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 2.0
+          },
+          "accuracy": 0.3333333333333333,
+          "macro avg": {
+            "precision": 0.1111111111111111,
+            "recall": 0.3333333333333333,
+            "f1-score": 0.16666666666666666,
+            "support": 15.0
+          },
+          "weighted avg": {
+            "precision": 0.1111111111111111,
+            "recall": 0.3333333333333333,
+            "f1-score": 0.16666666666666666,
+            "support": 15.0
+          }
+        }
+      }
+    },
+    "comparison_against_baseline": {
+      "applicable": true,
+      "baseline_f1": 0.1667,
+      "ml_f1": 0.1111,
+      "baseline_accuracy": 0.3333,
+      "ml_accuracy": 0.2,
+      "ml_beats_baseline": false,
+      "f1_improvement": -0.0556,
+      "accuracy_improvement": -0.1333,
+      "superiority_verdict": "ML DOES NOT beat majority-class baseline"
+    },
+    "ml_beats_baseline": false,
+    "superiority_verdict": "ML DOES NOT beat majority-class baseline",
+    "features": [
+      "quantity_prepared",
+      "day_of_week",
+      "day_of_month",
+      "month",
+      "week_of_year",
+      "is_weekend",
+      "quarter",
+      "sold_lag_1",
+      "sold_lag_3",
+      "sold_lag_7",
+      "sold_rolling_mean_3",
+      "sold_rolling_mean_7",
+      "waste_ratio_rolling_mean_3",
+      "waste_ratio_rolling_mean_7"
+    ],
+    "thresholds": {
+      "low_risk": "< 10.0% waste",
+      "medium_risk": "10.0% to 25.0% waste",
+      "high_risk": ">= 25.0% waste"
+    },
+    "class_labels": {
+      "0": "Low",
+      "1": "Medium",
+      "2": "High"
+    }
+  }
+}

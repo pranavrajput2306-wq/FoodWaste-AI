@@ -241,10 +241,17 @@ def cross_validate_waste_risk_candidates(
         X_tr, X_val = X_train.iloc[train_idx], X_train.iloc[val_idx]
         y_tr, y_val = y_train.iloc[train_idx], y_train.iloc[val_idx]
 
+        unique_classes = np.unique(y_tr)
+        single_class = len(unique_classes) < 2
+
         for name in candidates:
-            fold_model = get_waste_risk_classifiers(random_state=random_state)[name]
-            fold_model.fit(X_tr, y_tr)
-            preds = fold_model.predict(X_val)
+            if single_class:
+                preds = np.full(len(X_val), unique_classes[0])
+            else:
+                fold_model = get_waste_risk_classifiers(random_state=random_state)[name]
+                fold_model.fit(X_tr, y_tr)
+                preds = fold_model.predict(X_val)
+
             fold_metrics = evaluate_classification(y_val, preds)
             val_results[name]["f1_scores"].append(fold_metrics["F1"])
             val_results[name]["acc_scores"].append(fold_metrics["Accuracy"])
@@ -326,7 +333,7 @@ def train_and_compare_demand_models(
         "comparison": holdout_comparison,
         "baselines": baselines,
         "comparison_against_baselines": comparison_vs_baselines,
-        "ml_beats_baselines": comparison_vs_baselines["ml_beats_all_applicable_baselines"],
+        "ml_beats_baselines": bool(comparison_vs_baselines.get("ml_beats_baselines", False)),
         "superiority_verdict": comparison_vs_baselines["superiority_verdict"],
     }
 

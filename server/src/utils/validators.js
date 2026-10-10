@@ -99,25 +99,55 @@ const demandRecordValidationRules = [
 
   body('quantity_prepared')
     .notEmpty().withMessage('Quantity prepared is required.')
-    .isFloat({ min: 0 }).withMessage('Quantity prepared must be a non-negative number.'),
+    .isFloat().withMessage('Quantity prepared must be a valid number.')
+    .custom((val) => {
+      const num = parseFloat(val);
+      if (isNaN(num)) {
+        throw new Error('Quantity prepared must be a valid number.');
+      }
+      if (num < 0) {
+        throw new Error('Quantity prepared cannot be negative.');
+      }
+      return true;
+    }),
 
   body('quantity_sold')
     .notEmpty().withMessage('Quantity sold is required.')
-    .isFloat({ min: 0 }).withMessage('Quantity sold must be a non-negative number.'),
+    .isFloat().withMessage('Quantity sold must be a valid number.')
+    .custom((val) => {
+      const num = parseFloat(val);
+      if (isNaN(num)) {
+        throw new Error('Quantity sold must be a valid number.');
+      }
+      if (num < 0) {
+        throw new Error('Quantity sold cannot be negative.');
+      }
+      return true;
+    }),
 
   body('quantity_wasted')
     .notEmpty().withMessage('Quantity wasted is required.')
-    .isFloat({ min: 0 }).withMessage('Quantity wasted must be a non-negative number.')
+    .isFloat().withMessage('Quantity wasted must be a valid number.')
     .custom((quantity_wasted, { req }) => {
+      const wasted = parseFloat(quantity_wasted);
+      if (isNaN(wasted)) {
+        throw new Error('Quantity wasted must be a valid number.');
+      }
+      if (wasted < 0) {
+        throw new Error('Quantity wasted cannot be negative.');
+      }
+
       const prepared = parseFloat(req.body.quantity_prepared);
       const sold = parseFloat(req.body.quantity_sold);
-      const wasted = parseFloat(quantity_wasted);
 
-      if (!isNaN(prepared) && !isNaN(wasted) && wasted > prepared) {
-        throw new Error('Quantity wasted cannot exceed quantity prepared.');
-      }
-      if (!isNaN(prepared) && !isNaN(sold) && !isNaN(wasted) && (sold + wasted) > prepared) {
-        throw new Error('Quantity sold plus quantity wasted cannot exceed quantity prepared.');
+      // Only evaluate logical bounds if prepared is non-negative
+      if (!isNaN(prepared) && prepared >= 0) {
+        if (wasted > prepared) {
+          throw new Error('Quantity wasted cannot exceed quantity prepared.');
+        }
+        if (!isNaN(sold) && sold >= 0 && (sold + wasted) > prepared) {
+          throw new Error('Quantity sold plus quantity wasted cannot exceed quantity prepared.');
+        }
       }
       return true;
     }),

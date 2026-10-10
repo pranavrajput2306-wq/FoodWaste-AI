@@ -96,12 +96,25 @@ export default function DemandPage() {
   };
 
   // Client-side live calculation & validation
-  const preparedNum = parseFloat(formData.quantity_prepared) || 0;
-  const soldNum     = parseFloat(formData.quantity_sold) || 0;
-  const wastedNum   = parseFloat(formData.quantity_wasted) || 0;
+  const parsedPrep = parseFloat(formData.quantity_prepared);
+  const parsedSold = parseFloat(formData.quantity_sold);
+  const parsedWasted = parseFloat(formData.quantity_wasted);
+
+  const isPreparedNeg = formData.quantity_prepared !== '' && !isNaN(parsedPrep) && parsedPrep < 0;
+  const isSoldNeg     = formData.quantity_sold !== '' && !isNaN(parsedSold) && parsedSold < 0;
+  const isWastedNeg   = formData.quantity_wasted !== '' && !isNaN(parsedWasted) && parsedWasted < 0;
+  const hasNegativeViolation = isPreparedNeg || isSoldNeg || isWastedNeg;
+
+  const preparedNum = !isNaN(parsedPrep) ? parsedPrep : 0;
+  const soldNum     = !isNaN(parsedSold) ? parsedSold : 0;
+  const wastedNum   = !isNaN(parsedWasted) ? parsedWasted : 0;
   const totalAccounted = soldNum + wastedNum;
-  const hasLogicalViolation = (formData.quantity_prepared !== '' && formData.quantity_sold !== '' && formData.quantity_wasted !== '') &&
+
+  const hasExceedViolation = !hasNegativeViolation &&
+    (formData.quantity_prepared !== '' && formData.quantity_sold !== '' && formData.quantity_wasted !== '') &&
     (totalAccounted > preparedNum || wastedNum > preparedNum);
+
+  const hasLogicalViolation = hasNegativeViolation || hasExceedViolation;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -113,16 +126,44 @@ export default function DemandPage() {
       setFormError('Record date is required.');
       return;
     }
-    if (preparedNum < 0 || soldNum < 0 || wastedNum < 0) {
-      setFormError('Quantities must be non-negative numbers.');
+
+    if (formData.quantity_prepared === '' || isNaN(Number(formData.quantity_prepared))) {
+      setFormError('Quantity prepared is required.');
       return;
     }
-    if (wastedNum > preparedNum) {
+    if (Number(formData.quantity_prepared) < 0) {
+      setFormError('Quantity prepared cannot be negative.');
+      return;
+    }
+
+    if (formData.quantity_sold === '' || isNaN(Number(formData.quantity_sold))) {
+      setFormError('Quantity sold is required.');
+      return;
+    }
+    if (Number(formData.quantity_sold) < 0) {
+      setFormError('Quantity sold cannot be negative.');
+      return;
+    }
+
+    if (formData.quantity_wasted === '' || isNaN(Number(formData.quantity_wasted))) {
+      setFormError('Quantity wasted is required.');
+      return;
+    }
+    if (Number(formData.quantity_wasted) < 0) {
+      setFormError('Quantity wasted cannot be negative.');
+      return;
+    }
+
+    const prep = Number(formData.quantity_prepared);
+    const sold = Number(formData.quantity_sold);
+    const wast = Number(formData.quantity_wasted);
+
+    if (wast > prep) {
       setFormError('Quantity wasted cannot exceed quantity prepared.');
       return;
     }
-    if (totalAccounted > preparedNum) {
-      setFormError(`Sold (${soldNum}) + Wasted (${wastedNum}) = ${totalAccounted}, which exceeds Prepared (${preparedNum}).`);
+    if ((sold + wast) > prep) {
+      setFormError(`Sold (${sold}) + Wasted (${wast}) = ${sold + wast}, which exceeds Prepared (${prep}).`);
       return;
     }
 
@@ -132,9 +173,9 @@ export default function DemandPage() {
       const payload = {
         food_item_id: Number(formData.food_item_id),
         record_date: formData.record_date,
-        quantity_prepared: preparedNum,
-        quantity_sold: soldNum,
-        quantity_wasted: wastedNum,
+        quantity_prepared: prep,
+        quantity_sold: sold,
+        quantity_wasted: wast,
       };
 
       if (editingRecord) {
@@ -147,7 +188,8 @@ export default function DemandPage() {
       handleCloseModal();
       fetchRecords();
     } catch (err) {
-      setFormError(err.message || 'Failed to save demand record.');
+      const serverMsg = err.errors && err.errors.length > 0 ? err.errors[0].message : null;
+      setFormError(serverMsg || err.message || 'Failed to save demand record.');
     } finally {
       setSaving(false);
     }
@@ -445,7 +487,9 @@ export default function DemandPage() {
                   <span className="font-semibold">Integrity Check:</span> Sold ({soldNum}) + Wasted ({wastedNum}) = {totalAccounted}
                   {preparedNum > 0 && ` of ${preparedNum} Prepared`}
                 </div>
-                {hasLogicalViolation ? (
+                {hasNegativeViolation ? (
+                  <span className="text-[#C45B52] font-bold">⚠️ Negative value not allowed!</span>
+                ) : hasExceedViolation ? (
                   <span className="text-[#C45B52] font-bold">⚠️ Exceeds Prepared!</span>
                 ) : (
                   <span className="text-[#2F7D5A] font-semibold">✓ Valid</span>

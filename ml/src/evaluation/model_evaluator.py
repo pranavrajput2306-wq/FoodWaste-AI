@@ -79,11 +79,30 @@ def select_best_regression_model(
 ) -> Tuple[str, Dict[str, Any]]:
     """
     Select the best regression model based on minimum validation RMSE.
+    If validation RMSE is tied or indistinguishable within rounding (1e-4),
+    uses secondary metrics (MAE, R2) and a deterministic robustness priority
+    (favoring regularized/bounded tree ensembles over unregularized OLS)
+    rather than arbitrary dictionary ordering.
     """
     if not results:
         raise ValueError("Cannot select from empty model results.")
 
-    best_name = min(results.keys(), key=lambda name: results[name]["metrics"]["RMSE"])
+    # Tree ensembles with regularization/shrinkage have priority over unregularized OLS during ties
+    ROBUSTNESS_PRIORITY = {
+        "RandomForestRegressor": 0,
+        "GradientBoostingRegressor": 1,
+        "LinearRegression": 2,
+    }
+
+    def sort_key(name: str):
+        metrics = results[name]["metrics"]
+        rmse = metrics.get("RMSE", float("inf"))
+        mae = metrics.get("MAE", float("inf"))
+        r2 = metrics.get("R2", -float("inf"))
+        priority = ROBUSTNESS_PRIORITY.get(name, 99)
+        return (round(rmse, 4), round(mae, 4), -round(r2, 4), priority)
+
+    best_name = min(results.keys(), key=sort_key)
     return best_name, results[best_name]
 
 
@@ -318,7 +337,8 @@ def compare_demand_against_baselines(
 ) -> Dict[str, Any]:
     """
     Checks whether the ML model strictly beats valid baselines on RMSE and MAE.
-    Does NOT claim ML is superior if it does not beat the baseline.
+    Explicitly tracks the strongest applicable naive baseline (e.g., rolling_mean_7).
+    Does NOT claim ML is superior if it does not demonstrate improvement over the best baseline.
     """
     comparison: Dict[str, Any] = {}
     ml_rmse = ml_metrics.get("RMSE", float("inf"))
@@ -326,6 +346,9 @@ def compare_demand_against_baselines(
 
     beats_all_applicable = True
     applicable_count = 0
+    best_baseline_key = None
+    best_baseline_rmse = float("inf")
+    best_baseline_mae = float("inf")
 
     for base_key, b_info in baselines.items():
         if not b_info.get("applicable") or b_info.get("metrics") is None:
@@ -339,6 +362,12 @@ def compare_demand_against_baselines(
         b_metrics = b_info["metrics"]
         b_rmse = b_metrics.get("RMSE", float("inf"))
         b_mae = b_metrics.get("MAE", float("inf"))
+
+        # Track the best (lowest RMSE) baseline
+        if b_rmse < best_baseline_rmse:
+            best_baseline_rmse = b_rmse
+            best_baseline_mae = b_mae
+            best_baseline_key = base_key
 
         # ML beats baseline if lower error
         beats_rmse = ml_rmse < b_rmse
@@ -359,12 +388,25 @@ def compare_demand_against_baselines(
             "mae_improvement": round(b_mae - ml_mae, 4),
         }
 
-    overall_beat = beats_all_applicable if applicable_count > 0 else False
+    beats_best_baseline = (
+        ml_rmse < best_baseline_rmse and ml_mae < best_baseline_mae
+    ) if best_baseline_key is not None else False
+
+    overall_beat = beats_best_baseline and beats_all_applicable if applicable_count > 0 else False
+
     return {
         "comparisons": comparison,
         "applicable_baselines_count": applicable_count,
+        "best_baseline_key": best_baseline_key,
+        "best_baseline_rmse": best_baseline_rmse if best_baseline_key else None,
+        "best_baseline_mae": best_baseline_mae if best_baseline_key else None,
+        "beats_best_baseline": beats_best_baseline,
         "ml_beats_all_applicable_baselines": overall_beat,
-        "superiority_verdict": "ML beats applicable baselines" if overall_beat else "ML DOES NOT beat all applicable baselines (or baselines unavailable)",
+        "ml_beats_baselines": beats_best_baseline,
+        "superiority_verdict": (
+            f"ML beats best applicable baseline ({best_baseline_key})" if beats_best_baseline
+            else f"ML DOES NOT beat best applicable baseline ({best_baseline_key}: RMSE {best_baseline_rmse} vs ML RMSE {ml_rmse})"
+        ),
     }
 
 

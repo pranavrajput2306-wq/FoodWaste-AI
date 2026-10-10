@@ -255,19 +255,20 @@ def health_check() -> Dict[str, Any]:
     Ensures production inference cannot treat unverified/synthetic artifacts as valid production models.
     """
     prod_status = get_production_training_status()
-    is_verified_success = prod_status.get("status") == "success"
+    demand_validated = bool(prod_status.get("demand_validated", False) or prod_status.get("demand_status") == "success")
+    waste_validated = bool(prod_status.get("waste_risk_validated", False) or prod_status.get("waste_risk_status") == "success" or prod_status.get("status") == "success")
 
-    demand_exists = os.path.exists(DEMAND_MODEL_PATH) and os.path.getsize(DEMAND_MODEL_PATH) > 0
-    waste_exists = os.path.exists(WASTE_RISK_MODEL_PATH) and os.path.getsize(WASTE_RISK_MODEL_PATH) > 0
-
-    models_valid_and_available = is_verified_success and demand_exists and waste_exists
+    demand_exists = demand_validated and os.path.exists(DEMAND_MODEL_PATH) and os.path.getsize(DEMAND_MODEL_PATH) > 0
+    waste_exists = waste_validated and os.path.exists(WASTE_RISK_MODEL_PATH) and os.path.getsize(WASTE_RISK_MODEL_PATH) > 0
 
     return {
         "status": "healthy",
         "service": "foodwaste-ml-api",
         "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
-        "models_available": models_valid_and_available,
+        "models_available": demand_exists and waste_exists,
         "training_status": prod_status.get("status", "unknown"),
+        "demand_model_validated": demand_validated,
+        "waste_risk_model_validated": waste_validated,
         "artifacts": {
             "demand_model": demand_exists,
             "waste_risk_model": waste_exists,
@@ -282,7 +283,7 @@ def predict_demand(req: PredictionRequest) -> Dict[str, Any]:
     Forecast expected demand quantity for a food item on target_date.
     Never uses future information or fake values.
     """
-    # 1. Model Availability & Verification Check
+    # 1. Pipeline-wide Insufficient Data Guardrail Check
     prod_status = get_production_training_status()
     if prod_status.get("status") == "insufficient_data":
         return {
@@ -296,16 +297,7 @@ def predict_demand(req: PredictionRequest) -> Dict[str, Any]:
             "target_date": req.target_date,
         }
 
-    if not os.path.exists(DEMAND_MODEL_PATH) or os.path.getsize(DEMAND_MODEL_PATH) == 0:
-        return {
-            "success": False,
-            "status": "model_unavailable",
-            "message": "Demand forecasting model has not been trained or serialized yet.",
-            "food_item_id": req.food_item_id,
-            "target_date": req.target_date,
-        }
-
-    # 2. Extract Feature Row
+    # 2. Extract Feature Row & Item-Level Insufficient Data Check
     ok, feat_df, err = construct_inference_feature_row(
         food_item_id=req.food_item_id,
         target_date=req.target_date,
@@ -322,11 +314,32 @@ def predict_demand(req: PredictionRequest) -> Dict[str, Any]:
             "target_date": req.target_date,
         }
 
+    # 3. Model Availability & Baseline Validation Check
+    if prod_status.get("demand_status") == "unvalidated_against_baseline":
+        return {
+            "success": False,
+            "status": "model_unavailable",
+            "message": "Demand forecasting ML model is unavailable because no candidate demonstrated improvement over naive baselines on holdout evaluation.",
+            "food_item_id": req.food_item_id,
+            "target_date": req.target_date,
+        }
+
+    if not os.path.exists(DEMAND_MODEL_PATH) or os.path.getsize(DEMAND_MODEL_PATH) == 0:
+        return {
+            "success": False,
+            "status": "model_unavailable",
+            "message": "Demand forecasting model has not been trained or serialized yet.",
+            "food_item_id": req.food_item_id,
+            "target_date": req.target_date,
+        }
+
     # 3. Model Inference
     try:
         model = load_artifact(DEMAND_MODEL_PATH)
         pred_value = float(model.predict(feat_df)[0])
-        # Demand cannot be negative
+        raw_prediction = round(pred_value, 2)
+        is_clamped = raw_prediction < 0.0
+        # Demand cannot be negative: apply non-negative clamp
         predicted_demand = round(max(0.0, pred_value), 2)
 
         model_name = "Best Selected Regressor"
@@ -346,6 +359,8 @@ def predict_demand(req: PredictionRequest) -> Dict[str, Any]:
             "target_date": req.target_date,
             "planned_quantity_prepared": req.planned_quantity_prepared,
             "predicted_demand_units": predicted_demand,
+            "raw_model_prediction": raw_prediction,
+            "is_clamped": is_clamped,
             "model_used": model_name,
             "model_metrics": metrics,
         }

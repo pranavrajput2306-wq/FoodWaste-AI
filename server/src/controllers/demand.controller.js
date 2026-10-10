@@ -154,6 +154,31 @@ async function createDemandRecord(req, res, next) {
     const sold = parseFloat(quantity_sold);
     const wasted = parseFloat(quantity_wasted);
 
+    // Non-negative validation safeguard
+    if (isNaN(prepared) || prepared < 0) {
+      return res.status(422).json({
+        success: false,
+        message: 'Validation failed.',
+        errors: [{ field: 'quantity_prepared', message: 'Quantity prepared cannot be negative.' }],
+      });
+    }
+
+    if (isNaN(sold) || sold < 0) {
+      return res.status(422).json({
+        success: false,
+        message: 'Validation failed.',
+        errors: [{ field: 'quantity_sold', message: 'Quantity sold cannot be negative.' }],
+      });
+    }
+
+    if (isNaN(wasted) || wasted < 0) {
+      return res.status(422).json({
+        success: false,
+        message: 'Validation failed.',
+        errors: [{ field: 'quantity_wasted', message: 'Quantity wasted cannot be negative.' }],
+      });
+    }
+
     // Logical validation safeguard
     if (wasted > prepared) {
       return res.status(422).json({
@@ -253,6 +278,31 @@ async function updateDemandRecord(req, res, next) {
     const prepared = parseFloat(quantity_prepared);
     const sold = parseFloat(quantity_sold);
     const wasted = parseFloat(quantity_wasted);
+
+    // Non-negative validation safeguard
+    if (isNaN(prepared) || prepared < 0) {
+      return res.status(422).json({
+        success: false,
+        message: 'Validation failed.',
+        errors: [{ field: 'quantity_prepared', message: 'Quantity prepared cannot be negative.' }],
+      });
+    }
+
+    if (isNaN(sold) || sold < 0) {
+      return res.status(422).json({
+        success: false,
+        message: 'Validation failed.',
+        errors: [{ field: 'quantity_sold', message: 'Quantity sold cannot be negative.' }],
+      });
+    }
+
+    if (isNaN(wasted) || wasted < 0) {
+      return res.status(422).json({
+        success: false,
+        message: 'Validation failed.',
+        errors: [{ field: 'quantity_wasted', message: 'Quantity wasted cannot be negative.' }],
+      });
+    }
 
     // Logical validation safeguard
     if (wasted > prepared) {

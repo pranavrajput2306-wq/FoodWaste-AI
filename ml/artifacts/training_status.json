@@ -1,7 +1,10 @@
 {
-  "status": "insufficient_data",
-  "message": "Insufficient historical demand observations: 5 available, 30 required for reliable time-aware train/test evaluation.",
-  "samples_count": 5,
-  "min_samples_required": 30,
-  "timestamp": "2026-10-05T20:08:30.397490+00:00Z"
+  "status": "unvalidated_demand",
+  "demand_status": "unvalidated_against_baseline",
+  "demand_validated": false,
+  "waste_risk_status": "success",
+  "waste_risk_validated": true,
+  "message": "Demand ML model did not demonstrate improvement over naive baseline on holdout evaluation; demand artifact not published. Waste-risk model verified.",
+  "samples_count": 240,
+  "timestamp": "2026-10-10T21:09:15.402512+00:00Z"
 }
