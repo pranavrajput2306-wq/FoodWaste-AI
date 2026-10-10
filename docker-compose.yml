@@ -1,0 +1,67 @@
+services:
+  ml:
+    build:
+      context: ./ml
+      dockerfile: Dockerfile
+    image: foodwaste-ml:latest
+    container_name: foodwaste-ml
+    environment:
+      - NODE_ENV=production
+      - ML_PORT=8000
+      - ML_HOST=0.0.0.0
+      - ML_SERVICE_SECRET=${ML_SERVICE_SECRET:-change_in_production_ml_secret_key_12345}
+      - ML_ALLOWED_ORIGINS=http://server:5000,http://localhost:5000
+    networks:
+      - internal-net
+    restart: unless-stopped
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    image: foodwaste-server:latest
+    container_name: foodwaste-server
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - JWT_SECRET=${JWT_SECRET:-a_very_strong_production_secret_key_exceeding_32_characters_12345}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
+      - CLIENT_ORIGIN=${CLIENT_ORIGIN:-http://localhost:80,http://localhost:5173}
+      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_USER=${DB_USER:-root}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME:-food_waste_ai}
+      - ML_SERVICE_URL=http://ml:8000
+      - ML_SERVICE_SECRET=${ML_SERVICE_SECRET:-change_in_production_ml_secret_key_12345}
+    ports:
+      - "5000:5000"
+    depends_on:
+      - ml
+    networks:
+      - internal-net
+      - public-net
+    restart: unless-stopped
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:5000/api}
+    image: foodwaste-client:latest
+    container_name: foodwaste-client
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+    networks:
+      - public-net
+    restart: unless-stopped
+
+networks:
+  internal-net:
+    driver: bridge
+    internal: true
+  public-net:
+    driver: bridge
