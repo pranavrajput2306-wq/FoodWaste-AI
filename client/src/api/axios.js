@@ -52,9 +52,24 @@ api.interceptors.response.use(
         }
       }
 
+      let errorMessage = data?.message || data?.error;
+      if (!errorMessage) {
+        if (typeof data === 'string' && data.trim()) {
+          errorMessage = data.trim();
+        } else if (status === 502 || status === 503 || status === 504) {
+          errorMessage = 'Backend service is unavailable. Please ensure the API server is running on port 5000.';
+        } else if (status === 500) {
+          errorMessage = 'Internal server error. Please try again.';
+        } else if (status === 404) {
+          errorMessage = 'Requested API endpoint was not found.';
+        } else {
+          errorMessage = 'An unexpected error occurred. Please try again.';
+        }
+      }
+
       return Promise.reject({
         status,
-        message: data?.message || 'An error occurred.',
+        message: errorMessage,
         errors:  data?.errors  || [],
       });
     }
@@ -62,12 +77,12 @@ api.interceptors.response.use(
     if (error.request) {
       return Promise.reject({
         status: 0,
-        message: 'Network error. Please check your connection.',
+        message: 'Cannot connect to backend server. Please check your network and verify the server is running.',
         errors: [],
       });
     }
 
-    return Promise.reject({ status: 0, message: error.message, errors: [] });
+    return Promise.reject({ status: 0, message: error.message || 'An unexpected error occurred.', errors: [] });
   }
 );
 

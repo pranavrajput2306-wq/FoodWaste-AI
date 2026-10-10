@@ -1,4 +1,5 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 const { validateEnv } = require('./src/config/env');
 
 // Validate environment early before starting resources
@@ -19,10 +20,19 @@ async function startServer() {
     await initializeSchema();
 
     // 3. Start HTTP server
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
       console.log(`\n🚀 Server running on http://localhost:${PORT}`);
       console.log(`   Environment : ${process.env.NODE_ENV}`);
       console.log(`   Health check: http://localhost:${PORT}/api/health\n`);
+    });
+
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.error(`❌ Port ${PORT} is already in use by another process.`);
+      } else {
+        console.error('❌ Server startup error:', err.message);
+      }
+      process.exit(1);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error.message);
