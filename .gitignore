@@ -29,6 +29,8 @@ env/
 
 # ML artefacts
 ml/artifacts/*.joblib
+!ml/artifacts/waste_risk_model.joblib
+!ml/artifacts/training_metadata.joblib
 ml/artifacts/*.pkl
 ml/data/raw/
 ml/data/processed/

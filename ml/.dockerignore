@@ -14,6 +14,4 @@ env/
 tests/
 scratch/
 artifacts/demand_forecasting_model.joblib
-artifacts/waste_risk_model.joblib
-artifacts/training_metadata.joblib
-artifacts/evaluation_results.json
+

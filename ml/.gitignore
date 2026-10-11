@@ -11,6 +11,8 @@ data/processed/
 
 # Trained model artefacts
 artifacts/*.joblib
+!artifacts/waste_risk_model.joblib
+!artifacts/training_metadata.joblib
 artifacts/*.pkl
 
 # Notebook checkpoints
